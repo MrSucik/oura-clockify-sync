@@ -52,13 +52,13 @@ USER nodejs
 
 # Environment variables (can be overridden)
 ENV NODE_ENV=production \
-    PORT=8080 \
+    PORT=3000 \
     LOG_DIR=./logs \
     SYNC_SCHEDULE="0 */6 * * *" \
     SYNC_DAYS=1
 
 # Expose port
-EXPOSE 8080
+EXPOSE 3000
 
 # Use dumb-init to handle signals properly
 ENTRYPOINT ["dumb-init", "--"]
