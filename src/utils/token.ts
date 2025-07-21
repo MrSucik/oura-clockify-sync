@@ -4,28 +4,50 @@ import { getEnvironment } from '../config/env';
 import type { OuraTokenResponse, TokenStorage } from '../types/auth';
 
 /**
- * Load tokens from storage file
+ * Load tokens from environment variables or storage file
  */
 export function loadTokens(): TokenStorage | null {
   const env = getEnvironment();
 
+  // First, try to load from environment variables
+  if (env.OURA_ACCESS_TOKEN && env.OURA_REFRESH_TOKEN && env.OURA_TOKEN_EXPIRES_AT) {
+    console.log('📋 Loading tokens from environment variables');
+    return {
+      access_token: env.OURA_ACCESS_TOKEN,
+      refresh_token: env.OURA_REFRESH_TOKEN,
+      expires_at: env.OURA_TOKEN_EXPIRES_AT,
+    };
+  }
+
+  // Fallback to file-based storage
   try {
     if (fs.existsSync(env.TOKEN_FILE)) {
+      console.log('📋 Loading tokens from file:', env.TOKEN_FILE);
       const data = fs.readFileSync(env.TOKEN_FILE, 'utf8');
       return JSON.parse(data);
     }
   } catch (error) {
-    console.error('Failed to load tokens:', error);
+    console.error('Failed to load tokens from file:', error);
   }
   return null;
 }
 
 /**
- * Save tokens to storage file
+ * Save tokens to storage file (only if not using env vars)
  */
 export function saveTokens(tokens: TokenStorage): void {
   const env = getEnvironment();
 
+  // If tokens are in env vars, log a warning instead of saving to file
+  if (env.OURA_ACCESS_TOKEN && env.OURA_REFRESH_TOKEN && env.OURA_TOKEN_EXPIRES_AT) {
+    console.log('⚠️  Tokens are managed via environment variables. Update your env vars to persist new tokens:');
+    console.log(`OURA_ACCESS_TOKEN=${tokens.access_token}`);
+    console.log(`OURA_REFRESH_TOKEN=${tokens.refresh_token}`);
+    console.log(`OURA_TOKEN_EXPIRES_AT=${tokens.expires_at}`);
+    return;
+  }
+
+  // Save to file if not using env vars
   try {
     fs.writeFileSync(env.TOKEN_FILE, JSON.stringify(tokens, null, 2), 'utf8');
     console.log('✅ Tokens saved to', env.TOKEN_FILE);

@@ -11,6 +11,17 @@ const envSchema = z.object({
   // Clockify API Configuration
   CLOCKIFY_API_TOKEN: z.string().min(1, 'Clockify API token is required'),
 
+  // Oura OAuth Tokens (optional - can be set via env or tokens.json)
+  OURA_ACCESS_TOKEN: z.string().optional(),
+  OURA_REFRESH_TOKEN: z.string().optional(),
+  OURA_TOKEN_EXPIRES_AT: z
+    .string()
+    .optional()
+    .transform((val) => (val ? parseInt(val, 10) : undefined))
+    .refine((val) => val === undefined || (!Number.isNaN(val) && val > 0), {
+      message: 'OURA_TOKEN_EXPIRES_AT must be a valid timestamp',
+    }),
+
   // Application Configuration
   NODE_ENV: z.enum(['development', 'production', 'test'], {
     errorMap: () => ({ message: 'NODE_ENV must be one of: development, production, test' }),

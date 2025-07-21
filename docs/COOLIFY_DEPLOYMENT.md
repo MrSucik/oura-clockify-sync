@@ -65,10 +65,14 @@ Add the following environment variables in Coolify:
 OURA_CLIENT_ID=your_oura_client_id
 OURA_CLIENT_SECRET=your_oura_client_secret
 
+# Required - Oura OAuth Tokens
+# Get these by running "npm start" locally first
+OURA_ACCESS_TOKEN=your_access_token_from_tokens_json
+OURA_REFRESH_TOKEN=your_refresh_token_from_tokens_json
+OURA_TOKEN_EXPIRES_AT=your_expires_at_from_tokens_json
+
 # Required - Clockify API
 CLOCKIFY_API_TOKEN=your_clockify_api_token
-CLOCKIFY_WORKSPACE_ID=your_workspace_id
-CLOCKIFY_PROJECT_ID=your_project_id
 
 # Optional - Override defaults
 PORT=8080
@@ -81,29 +85,17 @@ OURA_API_DELAY=1100
 CLOCKIFY_API_DELAY=200
 ```
 
-### 5. Persistent Storage
+### 5. Persistent Storage (Optional)
 
-Add a persistent volume for tokens and logs:
+Add a persistent volume for logs if you want to persist them:
 
 1. In Coolify, go to your application settings
 2. Add persistent storage:
-   - Mount path: `/app/tokens.json`
-   - Size: 1MB
-   - Purpose: Store OAuth tokens
-3. Add another for logs (optional):
    - Mount path: `/app/logs`
    - Size: 100MB
    - Purpose: Store application logs
 
-### 6. Upload Initial Tokens
-
-After creating the persistent storage:
-
-1. Copy your local `tokens.json` content
-2. Use Coolify's file manager or SSH to create `/app/tokens.json`
-3. Paste the tokens content
-
-### 7. Health Check Configuration
+### 6. Health Check Configuration
 
 Coolify should automatically detect the health check from the Dockerfile. If not, configure:
 
@@ -113,7 +105,7 @@ Coolify should automatically detect the health check from the Dockerfile. If not
 - Timeout: `10s`
 - Retries: `3`
 
-### 8. Deploy
+### 7. Deploy
 
 1. Click "Deploy" in Coolify
 2. Monitor the deployment logs

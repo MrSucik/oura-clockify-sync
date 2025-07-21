@@ -48,7 +48,7 @@ function checkTokens(): boolean {
     const tokens = loadTokens();
 
     if (!tokens) {
-      log('No token file found. Please run "npm start" first to authenticate.', 'ERROR');
+      log('No tokens found. Please set OURA_ACCESS_TOKEN, OURA_REFRESH_TOKEN, and OURA_TOKEN_EXPIRES_AT in environment variables or run "npm start" to authenticate.', 'ERROR');
       return false;
     }
 
