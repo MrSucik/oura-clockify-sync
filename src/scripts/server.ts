@@ -16,7 +16,7 @@ const LOG_FILE = `${LOG_DIR}/server.log`;
 const PORT = process.env.PORT || 8080;
 
 // Schedule configuration
-const SYNC_SCHEDULE = process.env.SYNC_SCHEDULE || '0 */6 * * *'; // Default: every 6 hours
+const SYNC_SCHEDULE = process.env.SYNC_SCHEDULE || '0 * * * *'; // Default: every hour
 const SYNC_DAYS = parseInt(process.env.SYNC_DAYS || '1', 10);
 
 // Application state
