@@ -1,8 +1,9 @@
 import * as crypto from 'node:crypto';
-import express from 'express';
+import { serve } from '@hono/node-server';
+import { Hono } from 'hono';
 import { validateEnvironment } from '../config/env';
-import { createClockifyService } from '../services/ClockifyService';
-import { createOuraService } from '../services/OuraService';
+import { createClockifyService } from '../services/clockify-service';
+import { createOuraService } from '../services/oura-service';
 import {
   createSessionId,
   formatDuration,
@@ -140,20 +141,18 @@ async function startOAuth2Server(): Promise<void> {
   const ouraService = createOuraService();
   const clockifyService = createClockifyService(env.CLOCKIFY_API_TOKEN);
 
-  const app = express();
+  const app = new Hono();
   const state = crypto.randomBytes(16).toString('hex');
 
-  app.get('/callback', async (req, res) => {
-    const { code, state: returnedState, error } = req.query;
+  app.get('/callback', async (c) => {
+    const { code, state: returnedState, error } = c.req.query();
 
     if (error) {
-      res.send(`<h1>Authentication Failed</h1><p>Error: ${error}</p>`);
-      process.exit(1);
+      return c.html(`<h1>Authentication Failed</h1><p>Error: ${error}</p>`);
     }
 
     if (returnedState !== state) {
-      res.send('<h1>Authentication Failed</h1><p>Invalid state parameter</p>');
-      process.exit(1);
+      return c.html('<h1>Authentication Failed</h1><p>Invalid state parameter</p>');
     }
 
     try {
@@ -174,7 +173,7 @@ async function startOAuth2Server(): Promise<void> {
         console.log('💾 Tokens saved for future automated syncs');
       }
 
-      res.send(`
+      const html = c.html(`
         <h1>Authentication Successful!</h1>
         <p>Starting sync to Clockify...</p>
         <p>Check your terminal for progress.</p>
@@ -186,20 +185,23 @@ async function startOAuth2Server(): Promise<void> {
       await syncSleepToClockify(ouraService, clockifyService);
 
       process.exit(0);
+      return html;
     } catch (error) {
-      res.send('<h1>Authentication Failed</h1><p>Failed to exchange code for token</p>');
       console.error('OAuth2 error:', error);
-      process.exit(1);
+      return c.html('<h1>Authentication Failed</h1><p>Failed to exchange code for token</p>');
     }
   });
 
-  app.listen(env.SERVER_PORT, () => {
-    const authUrl = ouraService.generateAuthUrl(state);
-    console.log('\n🔐 OAuth2 Authentication');
-    console.log('\nPlease visit the following URL to authenticate:');
-    console.log(`\n${authUrl}`);
-    console.log('\nWaiting for authentication...');
+  serve({
+    fetch: app.fetch,
+    port: env.SERVER_PORT,
   });
+  
+  const authUrl = ouraService.generateAuthUrl(state);
+  console.log('\n🔐 OAuth2 Authentication');
+  console.log('\nPlease visit the following URL to authenticate:');
+  console.log(`\n${authUrl}`);
+  console.log('\nWaiting for authentication...');
 }
 
 // Main execution

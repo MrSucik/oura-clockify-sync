@@ -40,6 +40,9 @@ RUN npm ci --production && \
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/src ./src
 
+# Copy .env file if it exists (will be overridden by mounted .env in production)
+COPY .env* ./
+
 # Create logs directory and set permissions
 RUN mkdir -p logs && \
     chown -R nodejs:nodejs /app

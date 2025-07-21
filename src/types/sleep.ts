@@ -1,3 +1,4 @@
+// Note: Properties use snake_case to match Oura API response format
 export interface SleepSession {
   day: string;
   bedtime_start: string;

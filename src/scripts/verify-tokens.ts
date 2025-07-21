@@ -1,5 +1,5 @@
 import { validateEnvironment } from '../config/env';
-import { createOuraService } from '../services/OuraService';
+import { createOuraService } from '../services/oura-service';
 import type { TokenStorage } from '../types/auth';
 import { getErrorMessage } from '../utils/common';
 import { loadTokens } from '../utils/token';
@@ -130,15 +130,6 @@ async function verifyTokens() {
   }
 
   console.log(`\n${'═'.repeat(50)}\n`);
-}
-
-// Additional utility to show token details (for debugging)
-function showTokenDetails(tokens: TokenStorage) {
-  console.log('\n📋 Token Details (Debug Info):');
-  console.log('   Access Token Length:', tokens.access_token.length);
-  console.log('   Refresh Token Length:', tokens.refresh_token?.length || 0);
-  console.log('   Expires At (Unix):', tokens.expires_at);
-  console.log('   Expires At (ISO):', new Date(tokens.expires_at).toISOString());
 }
 
 // Run verification

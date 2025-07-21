@@ -1,6 +1,7 @@
 import { validateEnvironment } from '../config/env';
-import { createClockifyService } from '../services/ClockifyService';
-import { createOuraService } from '../services/OuraService';
+import { createClockifyService } from '../services/clockify-service';
+import { createOuraService } from '../services/oura-service';
+import type { ClockifyTimeEntry } from '../types/clockify';
 import { createSessionId, formatDuration, getErrorMessage, sleep } from '../utils/common';
 import { getValidToken } from '../utils/token';
 
@@ -40,7 +41,7 @@ async function syncSleepData(): Promise<void> {
 
     // Get existing Clockify entries
     const existingEntries = await clockifyService.getTimeEntriesForDateRange(startDate, endDate);
-    const existingSleepEntries = existingEntries.filter((entry) =>
+    const existingSleepEntries = existingEntries.filter((entry: ClockifyTimeEntry) =>
       entry.description.includes('🛌 Sleep')
     );
     console.log(`📊 Found ${existingSleepEntries.length} existing sleep entries in Clockify\n`);

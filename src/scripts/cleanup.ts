@@ -1,6 +1,7 @@
 import { validateEnvironment } from '../config/env';
-import { createClockifyService } from '../services/ClockifyService';
+import { createClockifyService } from '../services/clockify-service';
 import { getErrorMessage, sleep } from '../utils/common';
+import type { ClockifyTimeEntry } from '../types/clockify';
 
 // Validate environment on startup
 const env = validateEnvironment();
@@ -25,7 +26,7 @@ async function cleanupSleepEntries(): Promise<void> {
 
     // Filter for sleep entries
     const sleepEntries = allEntries.filter(
-      (entry) => entry.description.includes('🛌 Sleep') || entry.description.includes('[Oura:')
+      (entry: ClockifyTimeEntry) => entry.description.includes('🛌 Sleep') || entry.description.includes('[Oura:')
     );
 
     if (sleepEntries.length === 0) {
@@ -34,7 +35,7 @@ async function cleanupSleepEntries(): Promise<void> {
     }
 
     console.log(`\n❗ Found ${sleepEntries.length} sleep entries to delete:`);
-    sleepEntries.slice(0, 5).forEach((entry) => {
+    sleepEntries.slice(0, 5).forEach((entry: ClockifyTimeEntry) => {
       console.log(`   - ${entry.description.substring(0, 60)}...`);
     });
 

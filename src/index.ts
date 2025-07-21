@@ -4,8 +4,8 @@
 export * from './config/env';
 
 // Services
-export * from './services/ClockifyService';
-export * from './services/OuraService';
+export * from './services/clockify-service';
+export * from './services/oura-service';
 
 // Types
 export * from './types/auth';

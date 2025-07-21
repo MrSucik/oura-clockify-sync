@@ -2,7 +2,7 @@ import { validateEnvironment } from '../config/env';
 import { loadTokens } from '../utils/token';
 
 // Validate environment on startup
-const _env = validateEnvironment();
+validateEnvironment();
 
 function checkTokenStatus() {
   console.log('🔍 Checking Oura token status...\n');
