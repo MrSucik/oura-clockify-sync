@@ -1,0 +1,52 @@
+{
+  "name": "sleep-tracker",
+  "version": "1.0.0",
+  "description": "Oura to Clockify Sleep Sync - Automatically sync your Oura sleep data to Clockify as time entries",
+  "main": "index.js",
+  "scripts": {
+    "start": "tsx src/scripts/index.ts",
+    "auto-sync": "tsx src/scripts/auto-sync.ts",
+    "schedule": "tsx src/scripts/scheduler.ts",
+    "daemon": "tsx src/scripts/process-manager.ts",
+    "check-token": "tsx src/scripts/check-token.ts",
+    "verify": "tsx src/scripts/verify-tokens.ts",
+    "cleanup": "tsx src/scripts/cleanup.ts",
+    "server": "tsx src/scripts/server.ts",
+    "dev": "tsx watch src/scripts/index.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome lint src/",
+    "lint:fix": "biome lint --write src/",
+    "format": "biome format src/",
+    "format:fix": "biome format --write src/",
+    "check": "biome check src/",
+    "check:fix": "biome check --write src/",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "oura",
+    "sleep",
+    "tracker",
+    "clockify",
+    "sync",
+    "time-tracking",
+    "oauth2",
+    "api"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@hono/node-server": "^1.14.0",
+    "@types/node": "^22.10.7",
+    "@types/node-cron": "^3.0.11",
+    "dotenv": "^16.4.7",
+    "hono": "^4.6.0",
+    "node-cron": "^4.2.1",
+    "tsx": "^4.20.3",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.1.2",
+    "typescript": "^5.7.3"
+  }
+}
