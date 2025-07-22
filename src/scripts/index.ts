@@ -1,6 +1,6 @@
 import * as crypto from 'node:crypto';
-import { serve } from '@hono/node-server';
-import { Hono } from 'hono';
+import * as http from 'node:http';
+import * as cliProgress from 'cli-progress';
 import { validateEnvironment } from '../config/env';
 import { createClockifyService } from '../services/clockify-service';
 import { createOuraService } from '../services/oura-service';
@@ -11,7 +11,6 @@ import {
   isApiError,
   sleep,
 } from '../utils/common';
-import { saveTokens } from '../utils/token';
 
 // Validate environment on startup
 const env = validateEnvironment();
@@ -62,26 +61,40 @@ async function syncSleepToClockify(
     let skippedCount = 0;
     let failedCount = 0;
 
-    for (const sleepSession of sleepData.data) {
+    console.log('📊 Processing sleep sessions...\n');
+
+    // Create progress bar
+    const progressBar = new cliProgress.SingleBar({
+      format: '⏳ Progress |{bar}| {percentage}% | {value}/{total} Sessions | {day}',
+      barCompleteChar: '\u2588',
+      barIncompleteChar: '\u2591',
+      hideCursor: true,
+    });
+
+    progressBar.start(sleepData.data.length, 0, {
+      day: 'Starting...'
+    });
+
+    for (let i = 0; i < sleepData.data.length; i++) {
+      const sleepSession = sleepData.data[i];
+      
       // Create unique session ID
       const sessionId = createSessionId(sleepSession.bedtime_start, sleepSession.day);
 
-      const totalMinutes = Math.round(sleepSession.total_sleep_duration / 60);
-      const { hours: durationHours, minutes: durationMinutes } = formatDuration(totalMinutes);
-
-      console.log(
-        `\n🔍 Processing: ${sleepSession.day} | Duration: ${durationHours}h ${durationMinutes}m`
-      );
-      console.log(`   Session ID: [Oura:${sessionId}]`);
+      // Update progress bar
+      progressBar.update(i + 1, {
+        day: sleepSession.day
+      });
 
       // Check if already synced
       if (await clockifyService.isSessionSynced(sessionId, existingEntries)) {
-        console.log(`⏭️  Skipping already synced session`);
         skippedCount++;
         continue;
       }
 
       // Create time entry for sleep session
+      const totalMinutes = Math.round(sleepSession.total_sleep_duration / 60);
+      const { hours: durationHours, minutes: durationMinutes } = formatDuration(totalMinutes);
       const description = `🛌 Sleep - ${durationHours}h ${durationMinutes}m (${sleepSession.efficiency}% efficiency) [Oura:${sessionId}]`;
 
       try {
@@ -92,25 +105,23 @@ async function syncSleepToClockify(
           description: description,
         });
 
-        console.log(
-          `✅ Synced sleep session: ${sleepSession.day} - ${durationHours}h ${durationMinutes}m`
-        );
         syncedCount++;
 
         // Add delay after successful API call to avoid rate limiting
         await sleep(env.CLOCKIFY_API_DELAY);
       } catch (error: unknown) {
         const errorMessage = getErrorMessage(error);
-        console.error(`❌ Failed to sync session ${sleepSession.day}:`, errorMessage);
         failedCount++;
 
         // If we hit rate limit, wait longer before continuing
         if (errorMessage.includes('429') || errorMessage.includes('Too Many Requests')) {
-          console.log('⏸️  Rate limit hit, waiting 200ms before continuing...');
           await sleep(200);
         }
       }
     }
+
+    // Stop the progress bar
+    progressBar.stop();
 
     console.log(`\n🎉 Sync complete!`);
     console.log(`   - Oura sleep sessions: ${sleepData.data.length}`);
@@ -140,68 +151,93 @@ async function syncSleepToClockify(
 async function startOAuth2Server(): Promise<void> {
   const ouraService = createOuraService();
   const clockifyService = createClockifyService(env.CLOCKIFY_API_TOKEN);
-
-  const app = new Hono();
   const state = crypto.randomBytes(16).toString('hex');
 
-  app.get('/callback', async (c) => {
-    const { code, state: returnedState, error } = c.req.query();
+  const server = http.createServer(async (req, res) => {
+    const url = new URL(req.url || '', `http://localhost:${env.SERVER_PORT}`);
+    
+    if (url.pathname === '/callback') {
+      const code = url.searchParams.get('code');
+      const returnedState = url.searchParams.get('state');
+      const error = url.searchParams.get('error');
 
-    if (error) {
-      return c.html(`<h1>Authentication Failed</h1><p>Error: ${error}</p>`);
-    }
-
-    if (returnedState !== state) {
-      return c.html('<h1>Authentication Failed</h1><p>Invalid state parameter</p>');
-    }
-
-    try {
-      const tokenData = await ouraService.exchangeCodeForToken(code as string);
-      console.log('\n✅ OAuth2 authentication successful!');
-      console.log('Access token received. Token expires in:', tokenData.expires_in, 'seconds');
-
-      // Save tokens for future automated use
-      if (tokenData.refresh_token) {
-        const expiresAt = Date.now() + tokenData.expires_in * 1000 - 60 * 1000;
-        const tokenStorage = {
-          access_token: tokenData.access_token,
-          refresh_token: tokenData.refresh_token,
-          expires_at: expiresAt,
-        };
-
-        saveTokens(tokenStorage);
-        console.log('💾 Tokens saved for future automated syncs');
+      if (error) {
+        res.writeHead(400, { 'Content-Type': 'text/html' });
+        res.end(`<h1>Authentication Failed</h1><p>Error: ${error}</p>`);
+        return;
       }
 
-      const html = c.html(`
-        <h1>Authentication Successful!</h1>
-        <p>Starting sync to Clockify...</p>
-        <p>Check your terminal for progress.</p>
-        <script>setTimeout(() => window.close(), 3000);</script>
-      `);
+      if (returnedState !== state) {
+        res.writeHead(400, { 'Content-Type': 'text/html' });
+        res.end('<h1>Authentication Failed</h1><p>Invalid state parameter</p>');
+        return;
+      }
 
-      // Set the access token in the service and sync to Clockify
-      ouraService.setAccessToken(tokenData.access_token);
-      await syncSleepToClockify(ouraService, clockifyService);
+      try {
+        const tokenData = await ouraService.exchangeCodeForToken(code as string);
+        console.log('\n✅ OAuth2 authentication successful!');
+        console.log('Access token received. Token expires in:', tokenData.expires_in, 'seconds');
 
-      process.exit(0);
-      return html;
-    } catch (error) {
-      console.error('OAuth2 error:', error);
-      return c.html('<h1>Authentication Failed</h1><p>Failed to exchange code for token</p>');
+        // Log tokens for manual configuration in Coolify
+        console.log('\n🔑 === AUTHENTICATION TOKENS ===');
+        console.log('Copy these values to your Coolify environment:');
+        console.log('\nOURA_ACCESS_TOKEN=');
+        console.log(tokenData.access_token);
+        
+        if (tokenData.refresh_token) {
+          console.log('\nOURA_REFRESH_TOKEN=');
+          console.log(tokenData.refresh_token);
+        } else {
+          console.log('\n⚠️  No refresh token received from Oura');
+          console.log('This may happen if you\'re re-authenticating with the same app');
+        }
+        console.log('\n=============================\n');
+
+        // Set the access token in the service and sync to Clockify
+        ouraService.setAccessToken(tokenData.access_token);
+        
+        // Start sync process asynchronously
+        syncSleepToClockify(ouraService, clockifyService).then(() => {
+          console.log('\n✨ Sync completed successfully!');
+          // Wait a bit before exiting to ensure everything is properly closed
+          setTimeout(() => {
+            server.close();
+            process.exit(0);
+          }, 5000);
+        }).catch((error) => {
+          console.error('\n❌ Sync failed:', error);
+          setTimeout(() => {
+            server.close();
+            process.exit(1);
+          }, 5000);
+        });
+
+        // Return response immediately
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end(`
+          <h1>Authentication Successful!</h1>
+          <p>Starting sync to Clockify...</p>
+          <p>Check your terminal for progress.</p>
+          <script>setTimeout(() => window.close(), 3000);</script>
+        `);
+      } catch (error) {
+        console.error('OAuth2 error:', error);
+        res.writeHead(500, { 'Content-Type': 'text/html' });
+        res.end('<h1>Authentication Failed</h1><p>Failed to exchange code for token</p>');
+      }
+    } else {
+      res.writeHead(404);
+      res.end('Not found');
     }
   });
 
-  serve({
-    fetch: app.fetch,
-    port: env.SERVER_PORT,
+  server.listen(env.SERVER_PORT, () => {
+    const authUrl = ouraService.generateAuthUrl(state);
+    console.log('\n🔐 OAuth2 Authentication');
+    console.log('\nPlease visit the following URL to authenticate:');
+    console.log(`\n${authUrl}`);
+    console.log('\nWaiting for authentication...');
   });
-  
-  const authUrl = ouraService.generateAuthUrl(state);
-  console.log('\n🔐 OAuth2 Authentication');
-  console.log('\nPlease visit the following URL to authenticate:');
-  console.log(`\n${authUrl}`);
-  console.log('\nWaiting for authentication...');
 }
 
 // Main execution

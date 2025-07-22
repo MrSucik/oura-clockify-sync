@@ -1,5 +1,3 @@
-import * as fs from 'node:fs';
-import * as path from 'node:path';
 import { z } from 'zod';
 
 // Comprehensive environment schema - ALL REQUIRED, NO DEFAULTS
@@ -11,16 +9,6 @@ const envSchema = z.object({
   // Clockify API Configuration
   CLOCKIFY_API_TOKEN: z.string().min(1, 'Clockify API token is required'),
 
-  // Oura OAuth Tokens (optional - can be set via env or tokens.json)
-  OURA_ACCESS_TOKEN: z.string().optional(),
-  OURA_REFRESH_TOKEN: z.string().optional(),
-  OURA_TOKEN_EXPIRES_AT: z
-    .string()
-    .optional()
-    .transform((val) => (val ? parseInt(val, 10) : undefined))
-    .refine((val) => val === undefined || (!Number.isNaN(val) && val > 0), {
-      message: 'OURA_TOKEN_EXPIRES_AT must be a valid timestamp',
-    }),
 
   // Application Configuration
   NODE_ENV: z.enum(['development', 'production', 'test'], {
@@ -60,25 +48,8 @@ const envSchema = z.object({
       message: 'CLOCKIFY_API_DELAY must be a number between 0 and 10000 (milliseconds)',
     }),
 
-  // File Paths
-  TOKEN_FILE: z.string().min(1, 'TOKEN_FILE path is required'),
-  LOG_DIR: z.string().min(1, 'LOG_DIR path is required'),
-
   // Project Configuration
   SLEEP_PROJECT_NAME: z.string().min(1, 'SLEEP_PROJECT_NAME is required'),
-
-  // Timeout Configuration
-  SYNC_TIMEOUT: z
-    .string()
-    .transform((val) => parseInt(val, 10))
-    .refine((val) => !Number.isNaN(val) && val >= 30000 && val <= 600000, {
-      message: 'SYNC_TIMEOUT must be between 30000 and 600000 (30s to 10min)',
-    }),
-
-  // Logging Configuration
-  LOG_LEVEL: z.enum(['ERROR', 'WARN', 'INFO', 'DEBUG'], {
-    errorMap: () => ({ message: 'LOG_LEVEL must be one of: ERROR, WARN, INFO, DEBUG' }),
-  }),
 });
 
 // Inferred type for the validated environment
@@ -113,12 +84,8 @@ export function validateEnvironment(skipDotenv: boolean = false): Environment {
     // Validate environment variables
     cachedEnv = envSchema.parse(process.env);
 
-    // Validate file paths exist or can be created
-    validatePaths(cachedEnv);
-
     console.log('✅ Environment validation successful');
     console.log(`   Environment: ${cachedEnv.NODE_ENV}`);
-    console.log(`   Log Level: ${cachedEnv.LOG_LEVEL}`);
     console.log(`   Sync Days: ${cachedEnv.SYNC_DAYS}`);
 
     return cachedEnv;
@@ -166,33 +133,6 @@ export function validateEnvironment(skipDotenv: boolean = false): Environment {
   }
 }
 
-/**
- * Validates that required paths exist or can be created
- */
-function validatePaths(env: Environment): void {
-  // Ensure log directory exists
-  try {
-    if (!fs.existsSync(env.LOG_DIR)) {
-      fs.mkdirSync(env.LOG_DIR, { recursive: true });
-    }
-  } catch (error) {
-    throw new Error(`Cannot create log directory ${env.LOG_DIR}: ${error}`);
-  }
-
-  // Validate token file directory can be written to
-  const tokenDir = path.dirname(env.TOKEN_FILE);
-  try {
-    if (!fs.existsSync(tokenDir)) {
-      fs.mkdirSync(tokenDir, { recursive: true });
-    }
-    // Test write access
-    const testFile = path.join(tokenDir, '.write-test');
-    fs.writeFileSync(testFile, 'test');
-    fs.unlinkSync(testFile);
-  } catch (error) {
-    throw new Error(`Cannot write to token file directory ${tokenDir}: ${error}`);
-  }
-}
 
 /**
  * Shows an example .env file content
@@ -223,15 +163,9 @@ function showExampleEnv(): void {
   console.error('');
   console.error('# Performance Configuration');
   console.error('CLOCKIFY_API_DELAY=50');
-  console.error('SYNC_TIMEOUT=300000');
   console.error('');
-  console.error('# File Configuration');
-  console.error('TOKEN_FILE=oura-tokens.json');
-  console.error('LOG_DIR=logs');
+  console.error('# Project Configuration');
   console.error('SLEEP_PROJECT_NAME=Sleep');
-  console.error('');
-  console.error('# Logging');
-  console.error('LOG_LEVEL=INFO');
   console.error('');
 }
 
