@@ -1,10 +1,11 @@
-# Environment variables
+# Environment variables (contains API keys and secrets)
 .env
 .env.*
 .env.local
 .env.production
 .env.test
 .env.validation-test
+*.env
 
 # Dependencies
 node_modules/
@@ -37,11 +38,16 @@ yarn-error.log*
 tmp/
 temp/
 .tmp/
+*.csv
 
-# OAuth tokens (if stored locally)
+# OAuth tokens and credentials (NEVER commit these!)
 tokens.json
 oura-tokens.json
+*-tokens.json
+*.tokens
 .tokens/
+credentials.json
+*.credentials
 
 # Logs
 logs/

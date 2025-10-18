@@ -150,7 +150,7 @@ function showExampleEnv(): void {
   console.error('# Application Configuration');
   console.error('NODE_ENV=development');
   console.error('SYNC_DAYS=1');
-  console.error('SERVER_PORT=3000');
+  console.error('SERVER_PORT=5555');
   console.error('');
   console.error('# API Endpoints');
   console.error('OURA_API_BASE=https://api.ouraring.com');
@@ -158,7 +158,7 @@ function showExampleEnv(): void {
   console.error('CLOCKIFY_API_BASE=https://api.clockify.me/api');
   console.error('');
   console.error('# OAuth Configuration');
-  console.error('REDIRECT_URI=http://localhost:3000/callback');
+  console.error('REDIRECT_URI=http://localhost:5555/callback');
   console.error('OAUTH_SCOPES=daily');
   console.error('');
   console.error('# Performance Configuration');

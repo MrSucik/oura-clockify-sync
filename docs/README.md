@@ -1,6 +1,6 @@
 # Documentation
 
-This directory contains detailed documentation for the Oura Sleep Tracker → Clockify Sync project.
+This directory contains detailed documentation for the Oura Clockify Sync project.
 
 ## Available Documentation
 

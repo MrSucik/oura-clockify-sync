@@ -37,7 +37,7 @@ npm run schedule every-minute
 
 You'll see output like:
 ```
-🚀 Starting Oura Sleep Tracker Scheduler
+🚀 Starting Oura Clockify Sync Scheduler
 Schedule: Every minute (testing)
 Cron pattern: * * * * *
 Sync days: 1

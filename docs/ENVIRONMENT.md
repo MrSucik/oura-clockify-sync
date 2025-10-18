@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Oura Sleep Tracker uses **comprehensive environment validation** with Zod. All environment variables are **required** with no defaults. The application validates the entire environment at startup and exits with detailed error messages if any variables are missing or invalid.
+The Oura Clockify Sync uses **comprehensive environment validation** with Zod. All environment variables are **required** with no defaults. The application validates the entire environment at startup and exits with detailed error messages if any variables are missing or invalid.
 
 ## Key Features
 

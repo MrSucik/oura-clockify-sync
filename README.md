@@ -1,4 +1,4 @@
-# Oura Sleep Tracker → Clockify Sync
+# Oura Clockify Sync
 
 A Node.js application that syncs your Oura sleep data to Clockify as time entries. It fetches sleep sessions from Oura and creates corresponding time entries in Clockify, with built-in duplicate detection for safe repeated runs.
 
@@ -305,7 +305,7 @@ tail -f logs/daemon.log     # Daemon management
 ## Project Structure
 
 ```
-sleep-tracker/
+oura-clockify-sync/
 ├── docs/                 # Documentation
 │   ├── README.md         # Documentation index
 │   ├── QUICKSTART.md     # Quick start guide

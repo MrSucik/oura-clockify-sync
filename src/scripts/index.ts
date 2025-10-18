@@ -242,7 +242,7 @@ async function startOAuth2Server(): Promise<void> {
 
 // Main execution
 async function main() {
-  console.log('🛌 Oura Sleep Tracker → Clockify Sync\n');
+  console.log('🛌 Oura Clockify Sync\n');
   console.log('This tool will sync your Oura sleep data to Clockify as time entries.\n');
 
   // Start OAuth2 flow

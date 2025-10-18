@@ -1,6 +1,6 @@
 # Coolify Deployment Guide
 
-This guide explains how to deploy the Oura Sleep Tracker to Coolify.
+This guide explains how to deploy the Oura Clockify Sync to Coolify.
 
 ## Prerequisites
 
@@ -18,7 +18,7 @@ Before deploying, you need to authenticate with Oura locally:
 ```bash
 # Clone the repository
 git clone <your-repo-url>
-cd sleep-tracker
+cd oura-clockify-sync
 
 # Install dependencies
 npm install
@@ -51,10 +51,10 @@ This will create a `tokens.json` file that you'll need for deployment.
 #### If using Docker Image:
 - Build and push your image first:
   ```bash
-  docker build -t your-registry/sleep-tracker:latest .
-  docker push your-registry/sleep-tracker:latest
+  docker build -t your-registry/oura-clockify-sync:latest .
+  docker push your-registry/oura-clockify-sync:latest
   ```
-- Image: `your-registry/sleep-tracker:latest`
+- Image: `your-registry/oura-clockify-sync:latest`
 
 ### 4. Environment Variables
 
