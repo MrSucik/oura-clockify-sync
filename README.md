@@ -52,7 +52,6 @@ The application uses **comprehensive environment validation** with Zod at startu
 - `NODE_ENV` - Environment (development/production/test)
 - `SYNC_DAYS` - Number of days to sync (1-365)
 - `SERVER_PORT` - OAuth callback server port
-- `LOG_LEVEL` - Logging level (ERROR/WARN/INFO/DEBUG)
 
 #### API Configuration:
 - `OURA_API_BASE` - Oura API base URL

@@ -59,7 +59,6 @@ OURA_CLIENT_ID=ac1234567890abcdef
 | `NODE_ENV` | Environment | `development`, `production`, `test` |
 | `SYNC_DAYS` | Days to sync | `1` to `365` |
 | `SERVER_PORT` | OAuth callback server port | `1` to `65535` |
-| `LOG_LEVEL` | Logging verbosity | `ERROR`, `WARN`, `INFO`, `DEBUG` |
 
 ### API Endpoints
 | Variable | Description | Default Value |
@@ -78,13 +77,10 @@ OURA_CLIENT_ID=ac1234567890abcdef
 | Variable | Description | Range | Default |
 |----------|-------------|-------|---------|
 | `CLOCKIFY_API_DELAY` | Delay between API calls (ms) | `0` to `10000` | `50` |
-| `SYNC_TIMEOUT` | Sync operation timeout (ms) | `30000` to `600000` | `300000` |
 
-### File Paths
+### Project Configuration
 | Variable | Description | Default Value |
 |----------|-------------|---------------|
-| `TOKEN_FILE` | OAuth tokens file path | `oura-tokens.json` |
-| `LOG_DIR` | Logs directory path | `logs` |
 | `SLEEP_PROJECT_NAME` | Clockify project name | `Sleep` |
 
 ## Validation Behavior
@@ -123,14 +119,12 @@ The system also validates that:
 ```bash
 NODE_ENV=development
 SYNC_DAYS=1
-LOG_LEVEL=DEBUG
 ```
 
 ### Production Setup
 ```bash
 NODE_ENV=production
 SYNC_DAYS=2
-LOG_LEVEL=INFO
 ```
 
 ## Troubleshooting
@@ -153,11 +147,9 @@ LOG_LEVEL=INFO
    - `SYNC_DAYS` must be 1-365
    - `SERVER_PORT` must be 1-65535
    - `CLOCKIFY_API_DELAY` must be 0-10000
-   - `SYNC_TIMEOUT` must be 30000-600000
 
 5. **Invalid enums**
    - `NODE_ENV`: development, production, or test
-   - `LOG_LEVEL`: ERROR, WARN, INFO, or DEBUG
 
 ### Testing Your Configuration
 

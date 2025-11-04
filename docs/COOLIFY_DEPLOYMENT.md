@@ -78,7 +78,6 @@ CLOCKIFY_API_TOKEN=your_clockify_api_token
 PORT=8080
 SYNC_SCHEDULE=0 */6 * * *
 SYNC_DAYS=1
-LOG_DIR=/app/logs
 
 # Optional - API delays (milliseconds)
 OURA_API_DELAY=1100
