@@ -8,7 +8,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install dependencies
-RUN npm ci
+RUN npm ci --no-audit --no-fund
 
 # Copy source code
 COPY . .
@@ -33,15 +33,12 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install production dependencies only
-RUN npm ci --production && \
+RUN npm ci --only=production --no-audit --no-fund && \
     npm cache clean --force
 
-# Copy built application from builder
+# Copy built application and source from builder
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/src ./src
-
-# Copy .env file if it exists (will be overridden by mounted .env in production)
-COPY .env* ./
 
 # Create logs directory and set permissions
 RUN mkdir -p logs && \
@@ -50,18 +47,19 @@ RUN mkdir -p logs && \
 # Switch to non-root user
 USER nodejs
 
-# Environment variables (can be overridden)
+# Environment variables (can be overridden by Coolify)
 ENV NODE_ENV=production \
-    PORT=5555 \
-    LOG_DIR=./logs \
-    SYNC_SCHEDULE="0 */6 * * *" \
-    SYNC_DAYS=1
+    SERVER_PORT=5555
 
 # Expose port
 EXPOSE 5555
 
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD node -e "console.log('healthy')" || exit 1
+
 # Use dumb-init to handle signals properly
 ENTRYPOINT ["dumb-init", "--"]
 
-# Start the server
-CMD ["npm", "run", "server"]
+# Start the application
+CMD ["npm", "start"]
