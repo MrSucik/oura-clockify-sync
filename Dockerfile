@@ -49,7 +49,8 @@ USER nodejs
 
 # Environment variables (can be overridden by Coolify)
 ENV NODE_ENV=production \
-    SERVER_PORT=5555
+    SERVER_PORT=5555 \
+    SYNC_SCHEDULE="0 * * * *"
 
 # Expose port
 EXPOSE 5555
@@ -61,5 +62,5 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 # Use dumb-init to handle signals properly
 ENTRYPOINT ["dumb-init", "--"]
 
-# Start the application
-CMD ["npm", "start"]
+# Start the scheduler (runs hourly by default)
+CMD ["npm", "run", "scheduler"]
