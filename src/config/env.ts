@@ -6,6 +6,10 @@ const envSchema = z.object({
   OURA_CLIENT_ID: z.string().min(1, 'Oura OAuth2 client ID is required'),
   OURA_CLIENT_SECRET: z.string().min(1, 'Oura OAuth2 client secret is required'),
 
+  // Oura OAuth2 Tokens (optional - if not provided, OAuth flow will be triggered)
+  OURA_ACCESS_TOKEN: z.string().optional(),
+  OURA_REFRESH_TOKEN: z.string().optional(),
+
   // Clockify API Configuration
   CLOCKIFY_API_TOKEN: z.string().min(1, 'Clockify API token is required'),
 
@@ -143,6 +147,10 @@ function showExampleEnv(): void {
   console.error('# Oura API OAuth2 Configuration');
   console.error('OURA_CLIENT_ID=your_client_id_here');
   console.error('OURA_CLIENT_SECRET=your_client_secret_here');
+  console.error('');
+  console.error('# Oura OAuth2 Tokens (optional - will be obtained via OAuth flow if not provided)');
+  console.error('# OURA_ACCESS_TOKEN=your_access_token_here');
+  console.error('# OURA_REFRESH_TOKEN=your_refresh_token_here');
   console.error('');
   console.error('# Clockify API Configuration');
   console.error('CLOCKIFY_API_TOKEN=your_clockify_token_here');
