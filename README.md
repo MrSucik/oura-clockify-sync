@@ -32,20 +32,20 @@ A Node.js application that syncs your Oura sleep data to Clockify as time entrie
      ```bash
      cp env.example .env
      ```
-   - Edit `.env` and set ALL required variables (no defaults provided)
+   - Edit `.env` and set all required variables (no defaults provided)
    - Replace all `your_*_here` placeholders with actual values
 
-   ⚠️ **Important**: All variables are required. The application validates the entire environment at startup and will exit with clear error messages if any variables are missing or invalid.
+   ⚠️ **Important**: Required variables must be set. The application validates the environment at startup and will exit with clear error messages if any required variables are missing or invalid.
 
 ## Environment Variables
 
-The application uses **comprehensive environment validation** with Zod at startup. **ALL variables are required** with no defaults. If any variables are missing or invalid, the app will exit with detailed error messages and examples.
+The application uses **comprehensive environment validation** with Zod at startup. Required variables have no defaults and must be provided; optional variables may be omitted. Missing required variables will cause the app to exit with detailed error messages and examples.
 
 ### Required Variables:
 
 #### Authentication:
 - `OURA_CLIENT_ID` - OAuth2 client ID from Oura
-- `OURA_CLIENT_SECRET` - OAuth2 client secret from Oura  
+- `OURA_CLIENT_SECRET` - OAuth2 client secret from Oura
 - `CLOCKIFY_API_TOKEN` - Clockify API token
 
 #### Application:
@@ -63,12 +63,15 @@ The application uses **comprehensive environment validation** with Zod at startu
 
 #### Performance:
 - `CLOCKIFY_API_DELAY` - Delay between API calls (ms)
-- `SYNC_TIMEOUT` - Sync operation timeout (ms)
 
-#### File Paths:
-- `TOKEN_FILE` - OAuth tokens file path
-- `LOG_DIR` - Logs directory path
+#### Project Configuration:
 - `SLEEP_PROJECT_NAME` - Clockify project name
+
+### Optional Variables:
+
+#### Authentication Tokens:
+- `OURA_ACCESS_TOKEN` - (Optional) Oura OAuth2 access token - if provided, skips OAuth flow
+- `OURA_REFRESH_TOKEN` - (Optional) Oura OAuth2 refresh token - used to auto-refresh expired access tokens
 
 ### Getting Your Credentials:
 
@@ -105,27 +108,28 @@ npm start
 ```
 
 This will:
-1. Open a browser for Oura OAuth authentication
-2. Save tokens to `oura-tokens.json` for future automated syncs
-3. Perform the initial sync of all historical data
+1. Check if `OURA_ACCESS_TOKEN` exists in your `.env` file
+2. If not found, open a browser for Oura OAuth authentication
+3. Display the access token and refresh token in the console
+4. Perform the initial sync of all historical data
 
-### Manual Sync
-After initial authentication, you can sync manually:
+**Important**: After the first run, copy the displayed tokens to your `.env` file:
+```bash
+OURA_ACCESS_TOKEN=your_access_token_here
+OURA_REFRESH_TOKEN=your_refresh_token_here
+```
+
+### Subsequent Runs
+Once you've added the tokens to your `.env` file, the app will:
+- Use the saved tokens from environment variables
+- Automatically refresh the access token when it expires
+- Skip the OAuth flow entirely
+- Display new tokens if they were refreshed (update your `.env` file if needed)
+
+Simply run:
 ```bash
 npm start
 ```
-
-### Automatic Sync (For Cron Jobs)
-Once authenticated, use the auto-sync script that doesn't require user interaction:
-```bash
-npm run auto-sync
-```
-
-This script:
-- Uses saved tokens from `oura-tokens.json`
-- Automatically refreshes tokens when expired
-- Syncs only recent sleep data (last 7 days)
-- Perfect for cron jobs
 
 ### Check Token Status
 To verify your authentication status:
@@ -268,16 +272,18 @@ tail -f logs/daemon.log     # Daemon management
 ```
 
 ### Token Management
-- Tokens are automatically refreshed when expired
-- If refresh fails, you'll need to run `npm start` again
-- Token file location: `oura-tokens.json`
+- Tokens are stored in your `.env` file as `OURA_ACCESS_TOKEN` and `OURA_REFRESH_TOKEN`
+- Access tokens are automatically refreshed when expired using the refresh token
+- When tokens are refreshed, the new values are displayed in the console
+- **Important:** Tokens are only persisted in your `.env` file. Refreshed tokens shown in console must be manually copied to `.env`, or they will be lost on the next run.
+- If refresh fails, you'll need to run `npm start` again to re-authenticate
 
 ### Token Lifecycle
-1. **Initial Authentication**: `npm start` saves tokens with 24-hour expiration
-2. **Safety Margin**: Tokens are marked expired 1 minute before actual expiration
-3. **Auto-Refresh**: When expired, `auto-sync` uses refresh token to get new access token
-4. **Persistence**: New tokens are saved after each refresh
-5. **Monitoring**: Use `npm run verify` to check complete token status
+1. **Initial Authentication**: `npm start` performs OAuth flow and displays tokens
+2. **Save Tokens**: Copy the tokens to your `.env` file for persistence
+3. **Auto-Refresh**: When the access token expires, the app uses the refresh token to get a new one
+4. **Update .env**: After refresh, new tokens are displayed - update your `.env` file
+5. **Monitoring**: The app will log token refresh events and display new tokens
 
 ## Troubleshooting
 

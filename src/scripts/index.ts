@@ -245,7 +245,29 @@ async function main() {
   console.log('🛌 Oura Clockify Sync\n');
   console.log('This tool will sync your Oura sleep data to Clockify as time entries.\n');
 
-  // Start OAuth2 flow
+  const ouraService = createOuraService();
+  const clockifyService = createClockifyService(env.CLOCKIFY_API_TOKEN);
+
+  // Check if we already have an access token in the environment
+  if (ouraService.hasAccessToken()) {
+    console.log('✅ Found existing access token in environment');
+    console.log('   Skipping OAuth flow...\n');
+
+    // Directly sync sleep data
+    try {
+      await syncSleepToClockify(ouraService, clockifyService);
+      process.exit(0);
+    } catch (error) {
+      console.error('\n❌ Sync failed: cached token may have expired or is invalid.');
+      console.error('   Please remove OURA_ACCESS_TOKEN and OURA_REFRESH_TOKEN from your .env file');
+      console.error('   and re-run the tool to re-authenticate.\n');
+      process.exit(1);
+    }
+  }
+
+  // No token found, start OAuth2 flow
+  console.log('⚠️  No access token found in environment');
+  console.log('   Starting OAuth2 authentication flow...\n');
   await startOAuth2Server();
 }
 
