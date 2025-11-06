@@ -54,11 +54,11 @@ const envSchema = z.object({
   // Project Configuration
   SLEEP_PROJECT_NAME: z.string().min(1, 'SLEEP_PROJECT_NAME is required'),
 
-  // Database Configuration (optional - uses file storage if not provided)
+  // Database Configuration
   DATABASE_URL: z
     .string()
     .url('DATABASE_URL must be a valid PostgreSQL connection string')
-    .optional(),
+    .min(1, 'DATABASE_URL is required for token persistence'),
 });
 
 // Inferred type for the validated environment

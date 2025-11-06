@@ -29,6 +29,7 @@ services:
       - .env
     environment:
       DATABASE_URL: postgresql://oura_user:${POSTGRES_PASSWORD:-changeme}@postgres:5432/oura_clockify
+    command: sh -c "npm run db:migrate && npm run scheduler"
     restart: unless-stopped
 
 volumes:
