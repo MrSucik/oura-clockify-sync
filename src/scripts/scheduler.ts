@@ -17,7 +17,7 @@ const env = validateEnvironment();
  * Sync sleep data from Oura to Clockify
  */
 async function syncSleepToClockify(
-  ouraService: ReturnType<typeof createOuraService>,
+  ouraService: Awaited<ReturnType<typeof createOuraService>>,
   clockifyService: ReturnType<typeof createClockifyService>
 ): Promise<void> {
   try {
@@ -36,10 +36,7 @@ async function syncSleepToClockify(
     const sleepData = await ouraService.getSleepData(startDate, endDate);
     console.log(`✅ Found ${sleepData.data.length} sleep sessions in Oura\n`);
 
-    const existingEntries = await clockifyService.getTimeEntriesForDateRange(
-      startDate,
-      endDate
-    );
+    const existingEntries = await clockifyService.getTimeEntriesForDateRange(startDate, endDate);
     console.log(`📊 Found ${existingEntries.length} existing time entries in Clockify`);
 
     const existingSleepEntries = existingEntries.filter((entry) =>
@@ -111,10 +108,9 @@ async function runSyncJob() {
   console.log(`🕐 Scheduled sync started at ${startTime.toISOString()}`);
   console.log('='.repeat(60));
 
-  const ouraService = createOuraService();
+  const ouraService = await createOuraService();
   const clockifyService = createClockifyService(env.CLOCKIFY_API_TOKEN);
 
-  // Check if we have access token
   if (!ouraService.hasAccessToken()) {
     console.error('❌ No access token found in environment');
     console.error('   Please set OURA_ACCESS_TOKEN and OURA_REFRESH_TOKEN');

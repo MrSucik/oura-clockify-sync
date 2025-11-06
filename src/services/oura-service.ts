@@ -11,11 +11,11 @@ interface OuraState {
   env: ReturnType<typeof getEnvironment>;
 }
 
-export function createOuraService() {
+export async function createOuraService() {
   const env = getEnvironment();
-  
-  const savedTokens = loadTokens();
-  
+
+  const savedTokens = await loadTokens();
+
   const state: OuraState = {
     accessToken: savedTokens?.access_token || env.OURA_ACCESS_TOKEN || null,
     refreshToken: savedTokens?.refresh_token || env.OURA_REFRESH_TOKEN || null,
@@ -66,9 +66,9 @@ export function createOuraService() {
       if (tokenData.refresh_token) {
         state.refreshToken = tokenData.refresh_token;
       }
-      
-      saveTokens(tokenData);
-      
+
+      await saveTokens(tokenData);
+
       return tokenData;
     } catch (error) {
       console.error('Failed to exchange code for token:', error);
@@ -112,7 +112,7 @@ export function createOuraService() {
         state.refreshToken = tokenData.refresh_token;
       }
 
-      saveTokens(tokenData);
+      await saveTokens(tokenData);
 
       console.log('✅ Successfully refreshed access token');
       console.log('🔑 New tokens:');

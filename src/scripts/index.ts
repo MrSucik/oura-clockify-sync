@@ -19,7 +19,7 @@ const env = validateEnvironment();
  * Sync sleep data from Oura to Clockify
  */
 async function syncSleepToClockify(
-  ouraService: ReturnType<typeof createOuraService>,
+  ouraService: Awaited<ReturnType<typeof createOuraService>>,
   clockifyService: ReturnType<typeof createClockifyService>
 ): Promise<void> {
   try {
@@ -40,10 +40,7 @@ async function syncSleepToClockify(
     console.log(`✅ Found ${sleepData.data.length} sleep sessions in Oura\n`);
 
     // Get existing Clockify entries for the date range
-    const existingEntries = await clockifyService.getTimeEntriesForDateRange(
-      startDate,
-      endDate
-    );
+    const existingEntries = await clockifyService.getTimeEntriesForDateRange(startDate, endDate);
     console.log(`📊 Found ${existingEntries.length} existing time entries in Clockify`);
 
     // Show existing sleep entries for debugging
@@ -72,18 +69,18 @@ async function syncSleepToClockify(
     });
 
     progressBar.start(sleepData.data.length, 0, {
-      day: 'Starting...'
+      day: 'Starting...',
     });
 
     for (let i = 0; i < sleepData.data.length; i++) {
       const sleepSession = sleepData.data[i];
-      
+
       // Create unique session ID
       const sessionId = createSessionId(sleepSession.bedtime_start, sleepSession.day);
 
       // Update progress bar
       progressBar.update(i + 1, {
-        day: sleepSession.day
+        day: sleepSession.day,
       });
 
       // Check if already synced
@@ -149,13 +146,13 @@ async function syncSleepToClockify(
  * Start OAuth2 server for authentication
  */
 async function startOAuth2Server(): Promise<void> {
-  const ouraService = createOuraService();
+  const ouraService = await createOuraService();
   const clockifyService = createClockifyService(env.CLOCKIFY_API_TOKEN);
   const state = crypto.randomBytes(16).toString('hex');
 
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url || '', `http://localhost:${env.SERVER_PORT}`);
-    
+
     if (url.pathname === '/callback') {
       const code = url.searchParams.get('code');
       const returnedState = url.searchParams.get('state');
@@ -183,34 +180,36 @@ async function startOAuth2Server(): Promise<void> {
         console.log('Copy these values to your Coolify environment:');
         console.log('\nOURA_ACCESS_TOKEN=');
         console.log(tokenData.access_token);
-        
+
         if (tokenData.refresh_token) {
           console.log('\nOURA_REFRESH_TOKEN=');
           console.log(tokenData.refresh_token);
         } else {
           console.log('\n⚠️  No refresh token received from Oura');
-          console.log('This may happen if you\'re re-authenticating with the same app');
+          console.log("This may happen if you're re-authenticating with the same app");
         }
         console.log('\n=============================\n');
 
         // Set the access token in the service and sync to Clockify
         ouraService.setAccessToken(tokenData.access_token);
-        
+
         // Start sync process asynchronously
-        syncSleepToClockify(ouraService, clockifyService).then(() => {
-          console.log('\n✨ Sync completed successfully!');
-          // Wait a bit before exiting to ensure everything is properly closed
-          setTimeout(() => {
-            server.close();
-            process.exit(0);
-          }, 5000);
-        }).catch((error) => {
-          console.error('\n❌ Sync failed:', error);
-          setTimeout(() => {
-            server.close();
-            process.exit(1);
-          }, 5000);
-        });
+        syncSleepToClockify(ouraService, clockifyService)
+          .then(() => {
+            console.log('\n✨ Sync completed successfully!');
+            // Wait a bit before exiting to ensure everything is properly closed
+            setTimeout(() => {
+              server.close();
+              process.exit(0);
+            }, 5000);
+          })
+          .catch((error) => {
+            console.error('\n❌ Sync failed:', error);
+            setTimeout(() => {
+              server.close();
+              process.exit(1);
+            }, 5000);
+          });
 
         // Return response immediately
         res.writeHead(200, { 'Content-Type': 'text/html' });
@@ -245,10 +244,9 @@ async function main() {
   console.log('🛌 Oura Clockify Sync\n');
   console.log('This tool will sync your Oura sleep data to Clockify as time entries.\n');
 
-  const ouraService = createOuraService();
+  const ouraService = await createOuraService();
   const clockifyService = createClockifyService(env.CLOCKIFY_API_TOKEN);
 
-  // Check if we already have an access token in the environment
   if (ouraService.hasAccessToken()) {
     console.log('✅ Found existing access token in environment');
     console.log('   Skipping OAuth flow...\n');
@@ -259,7 +257,9 @@ async function main() {
       process.exit(0);
     } catch (_error) {
       console.error('\n❌ Sync failed: cached token may have expired or is invalid.');
-      console.error('   Please remove OURA_ACCESS_TOKEN and OURA_REFRESH_TOKEN from your .env file');
+      console.error(
+        '   Please remove OURA_ACCESS_TOKEN and OURA_REFRESH_TOKEN from your .env file'
+      );
       console.error('   and re-run the tool to re-authenticate.\n');
       process.exit(1);
     }

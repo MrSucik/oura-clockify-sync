@@ -55,4 +55,8 @@ sync.log
 *.log
 
 # Process files
-scheduler.pid .oura-tokens.json
+scheduler.pid
+.oura-tokens.json
+
+# Drizzle
+.drizzle

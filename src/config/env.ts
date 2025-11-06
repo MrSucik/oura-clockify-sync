@@ -13,7 +13,6 @@ const envSchema = z.object({
   // Clockify API Configuration
   CLOCKIFY_API_TOKEN: z.string().min(1, 'Clockify API token is required'),
 
-
   // Application Configuration
   NODE_ENV: z.enum(['development', 'production', 'test'], {
     errorMap: () => ({ message: 'NODE_ENV must be one of: development, production, test' }),
@@ -54,6 +53,12 @@ const envSchema = z.object({
 
   // Project Configuration
   SLEEP_PROJECT_NAME: z.string().min(1, 'SLEEP_PROJECT_NAME is required'),
+
+  // Database Configuration (optional - uses file storage if not provided)
+  DATABASE_URL: z
+    .string()
+    .url('DATABASE_URL must be a valid PostgreSQL connection string')
+    .optional(),
 });
 
 // Inferred type for the validated environment
@@ -137,7 +142,6 @@ export function validateEnvironment(skipDotenv: boolean = false): Environment {
   }
 }
 
-
 /**
  * Shows an example .env file content
  */
@@ -148,7 +152,9 @@ function showExampleEnv(): void {
   console.error('OURA_CLIENT_ID=your_client_id_here');
   console.error('OURA_CLIENT_SECRET=your_client_secret_here');
   console.error('');
-  console.error('# Oura OAuth2 Tokens (optional - will be obtained via OAuth flow if not provided)');
+  console.error(
+    '# Oura OAuth2 Tokens (optional - will be obtained via OAuth flow if not provided)'
+  );
   console.error('# OURA_ACCESS_TOKEN=your_access_token_here');
   console.error('# OURA_REFRESH_TOKEN=your_refresh_token_here');
   console.error('');
