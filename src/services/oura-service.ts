@@ -3,6 +3,7 @@ import { URLSearchParams } from 'node:url';
 import { getEnvironment } from '../config/env';
 import type { OuraTokenResponse } from '../types/auth';
 import type { SleepDataResponse } from '../types/sleep';
+import { loadTokens, saveTokens } from '../utils/token-storage';
 
 interface OuraState {
   accessToken: string | null;
@@ -12,15 +13,15 @@ interface OuraState {
 
 export function createOuraService() {
   const env = getEnvironment();
+  
+  const savedTokens = loadTokens();
+  
   const state: OuraState = {
-    accessToken: env.OURA_ACCESS_TOKEN || null,
-    refreshToken: env.OURA_REFRESH_TOKEN || null,
+    accessToken: savedTokens?.access_token || env.OURA_ACCESS_TOKEN || null,
+    refreshToken: savedTokens?.refresh_token || env.OURA_REFRESH_TOKEN || null,
     env,
   };
 
-  /**
-   * Generate OAuth2 authorization URL
-   */
   const generateAuthUrl = (authState?: string): string => {
     const params = new URLSearchParams({
       response_type: 'code',
@@ -33,9 +34,6 @@ export function createOuraService() {
     return `${state.env.OURA_AUTH_BASE}/oauth/authorize?${params.toString()}`;
   };
 
-  /**
-   * Exchange authorization code for access token
-   */
   const exchangeCodeForToken = async (code: string): Promise<OuraTokenResponse> => {
     const params = new URLSearchParams({
       grant_type: 'authorization_code',
@@ -68,6 +66,9 @@ export function createOuraService() {
       if (tokenData.refresh_token) {
         state.refreshToken = tokenData.refresh_token;
       }
+      
+      saveTokens(tokenData);
+      
       return tokenData;
     } catch (error) {
       console.error('Failed to exchange code for token:', error);
@@ -75,9 +76,6 @@ export function createOuraService() {
     }
   };
 
-  /**
-   * Refresh the access token using the refresh token
-   */
   const refreshAccessToken = async (): Promise<OuraTokenResponse> => {
     if (!state.refreshToken) {
       throw new Error('No refresh token available. Please re-authenticate.');
@@ -114,6 +112,8 @@ export function createOuraService() {
         state.refreshToken = tokenData.refresh_token;
       }
 
+      saveTokens(tokenData);
+
       console.log('✅ Successfully refreshed access token');
       console.log('🔑 New tokens:');
       console.log('\nOURA_ACCESS_TOKEN=');
@@ -131,9 +131,6 @@ export function createOuraService() {
     }
   };
 
-  /**
-   * Fetch sleep data from Oura API
-   */
   const getSleepData = async (
     startDate: string,
     endDate: string,
@@ -159,12 +156,10 @@ export function createOuraService() {
       }
     );
 
-    // If we get a 401, try refreshing the token
     if (sleepDataResponse.status === 401 && state.refreshToken) {
       console.log('🔄 Access token expired, refreshing...');
       await refreshAccessToken();
 
-      // Retry the request with the new token
       sleepDataResponse = await fetch(
         `${state.env.OURA_API_BASE}/v2/usercollection/sleep?${sleepParams}`,
         {
@@ -187,9 +182,6 @@ export function createOuraService() {
     return sleepDataResponse.json() as Promise<SleepDataResponse>;
   };
 
-  /**
-   * Get user personal information
-   */
   const getUserInfo = async (accessToken?: string): Promise<unknown> => {
     const token = accessToken || state.accessToken;
 
@@ -210,16 +202,10 @@ export function createOuraService() {
     return response.json();
   };
 
-  /**
-   * Set access token directly
-   */
   const setAccessToken = (token: string): void => {
     state.accessToken = token;
   };
 
-  /**
-   * Check if the service has a valid access token
-   */
   const hasAccessToken = (): boolean => {
     return !!state.accessToken;
   };

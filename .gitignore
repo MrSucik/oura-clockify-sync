@@ -55,4 +55,4 @@ sync.log
 *.log
 
 # Process files
-scheduler.pid 
+scheduler.pid .oura-tokens.json

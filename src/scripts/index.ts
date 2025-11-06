@@ -220,7 +220,7 @@ async function startOAuth2Server(): Promise<void> {
           <p>Check your terminal for progress.</p>
           <script>setTimeout(() => window.close(), 3000);</script>
         `);
-      } catch (error) {
+      } catch (_error) {
         console.error('OAuth2 error:', error);
         res.writeHead(500, { 'Content-Type': 'text/html' });
         res.end('<h1>Authentication Failed</h1><p>Failed to exchange code for token</p>');
@@ -257,7 +257,7 @@ async function main() {
     try {
       await syncSleepToClockify(ouraService, clockifyService);
       process.exit(0);
-    } catch (error) {
+    } catch (_error) {
       console.error('\n❌ Sync failed: cached token may have expired or is invalid.');
       console.error('   Please remove OURA_ACCESS_TOKEN and OURA_REFRESH_TOKEN from your .env file');
       console.error('   and re-run the tool to re-authenticate.\n');
