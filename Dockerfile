@@ -7,8 +7,8 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --no-audit --no-fund
+# Install all dependencies including devDependencies for build
+RUN NODE_ENV=development npm ci --no-audit --no-fund
 
 # Copy source code
 COPY . .
