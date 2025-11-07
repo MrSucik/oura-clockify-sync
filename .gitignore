@@ -60,3 +60,5 @@ scheduler.pid
 
 # Drizzle
 .drizzle
+
+opencode.json
