@@ -190,7 +190,10 @@ export function createClockifyService(apiToken: string) {
     return response.json() as Promise<ClockifyTimeEntry>;
   };
 
-  const isSessionSynced = async (sessionId: string, existingEntries: ClockifyTimeEntry[]): Promise<boolean> => {
+  const isSessionSynced = async (
+    sessionId: string,
+    existingEntries: ClockifyTimeEntry[]
+  ): Promise<boolean> => {
     const isFound = existingEntries.some((entry) =>
       entry.description.includes(`[Oura:${sessionId}]`)
     );

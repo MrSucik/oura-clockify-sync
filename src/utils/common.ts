@@ -63,6 +63,28 @@ export function isProcessError(error: unknown): error is { stderr: string } {
 }
 
 /**
+ * Create sleep entry description
+ */
+export function createSleepDescription(
+  totalMinutes: number,
+  efficiency: number,
+  sessionId: string
+): string {
+  const { hours: durationHours, minutes: durationMinutes } = formatDuration(totalMinutes);
+  return `🛌 Sleep - ${durationHours}h ${durationMinutes}m (${efficiency}% efficiency) [Oura:${sessionId}]`;
+}
+
+/**
+ * Handle rate limit errors with appropriate delay
+ */
+export async function handleRateLimitError(error: unknown): Promise<void> {
+  const errorMessage = getErrorMessage(error);
+  if (errorMessage.includes('429') || errorMessage.includes('Too Many Requests')) {
+    await sleep(200);
+  }
+}
+
+/**
  * Get error message from unknown error safely
  */
 export function getErrorMessage(error: unknown): string {

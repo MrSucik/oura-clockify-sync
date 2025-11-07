@@ -3,17 +3,17 @@ version: '3.8'
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: oura-clockify-postgres
+    container_name: oura-clockify-sync-db
     environment:
-      POSTGRES_DB: oura_clockify
-      POSTGRES_USER: oura_user
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U oura_user -d oura_clockify"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -28,8 +28,11 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql://oura_user:${POSTGRES_PASSWORD:-changeme}@postgres:5432/oura_clockify
-    command: sh -c "npm run db:migrate && npm run scheduler"
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/postgres
+      RUN_MODE: both
+    ports:
+      - "3000:3000"
+    command: sh -c "npm run db:migrate && npm run server"
     restart: unless-stopped
 
 volumes:

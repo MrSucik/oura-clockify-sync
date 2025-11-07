@@ -2,13 +2,7 @@ import cron from 'node-cron';
 import { validateEnvironment } from '../config/env';
 import { createClockifyService } from '../services/clockify-service';
 import { createOuraService } from '../services/oura-service';
-import {
-  createSessionId,
-  formatDuration,
-  getErrorMessage,
-  isApiError,
-  sleep,
-} from '../utils/common';
+import { syncSleepToClockify } from '../services/sync-service';
 
 // Validate environment on startup
 const env = validateEnvironment();
@@ -16,87 +10,14 @@ const env = validateEnvironment();
 /**
  * Sync sleep data from Oura to Clockify
  */
-async function syncSleepToClockify(
+async function syncSleepToClockifyScheduler(
   ouraService: Awaited<ReturnType<typeof createOuraService>>,
   clockifyService: ReturnType<typeof createClockifyService>
 ): Promise<void> {
-  try {
-    console.log('🔄 Starting Oura to Clockify sync...\n');
-
-    // Initialize Clockify client
-    await clockifyService.initialize();
-
-    // Get ALL historical sleep data
-    const today = new Date();
-    const endDate = today.toISOString().split('T')[0];
-    const startDate = '2015-01-01';
-
-    console.log(`📅 Fetching sleep data from ${startDate} to ${endDate}...\n`);
-
-    const sleepData = await ouraService.getSleepData(startDate, endDate);
-    console.log(`✅ Found ${sleepData.data.length} sleep sessions in Oura\n`);
-
-    const existingEntries = await clockifyService.getTimeEntriesForDateRange(startDate, endDate);
-    console.log(`📊 Found ${existingEntries.length} existing time entries in Clockify`);
-
-    const existingSleepEntries = existingEntries.filter((entry) =>
-      entry.description.includes('🛌 Sleep')
-    );
-    console.log(`   - ${existingSleepEntries.length} are sleep entries\n`);
-
-    // Sync each sleep session
-    let syncedCount = 0;
-    let skippedCount = 0;
-    let failedCount = 0;
-
-    for (const sleepSession of sleepData.data) {
-      const sessionId = createSessionId(sleepSession.bedtime_start, sleepSession.day);
-
-      if (await clockifyService.isSessionSynced(sessionId, existingEntries)) {
-        skippedCount++;
-        continue;
-      }
-
-      const totalMinutes = Math.round(sleepSession.total_sleep_duration / 60);
-      const { hours: durationHours, minutes: durationMinutes } = formatDuration(totalMinutes);
-      const description = `🛌 Sleep - ${durationHours}h ${durationMinutes}m (${sleepSession.efficiency}% efficiency) [Oura:${sessionId}]`;
-
-      try {
-        await clockifyService.createTimeEntry({
-          start: sleepSession.bedtime_start,
-          end: sleepSession.bedtime_end,
-          billable: false,
-          description: description,
-        });
-
-        syncedCount++;
-        await sleep(env.CLOCKIFY_API_DELAY);
-      } catch (error: unknown) {
-        const errorMessage = getErrorMessage(error);
-        failedCount++;
-
-        if (errorMessage.includes('429') || errorMessage.includes('Too Many Requests')) {
-          await sleep(200);
-        }
-      }
-    }
-
-    console.log(`\n✅ Sync complete at ${new Date().toISOString()}`);
-    console.log(`   - Newly synced: ${syncedCount}`);
-    console.log(`   - Already existed: ${skippedCount}`);
-    console.log(`   - Failed: ${failedCount}\n`);
-  } catch (error: unknown) {
-    console.error('\n❌ Sync failed:');
-
-    if (isApiError(error)) {
-      console.error('Status:', error.status);
-      const errorData = error.data as Record<string, unknown>;
-      console.error('Error:', errorData?.detail || error.statusText);
-    } else {
-      console.error('Error:', getErrorMessage(error));
-    }
-    throw error;
-  }
+  await syncSleepToClockify(ouraService, clockifyService, env, {
+    showProgressBar: false,
+    logPrefix: '',
+  });
 }
 
 /**
@@ -119,13 +40,13 @@ async function runSyncJob() {
   }
 
   try {
-    await syncSleepToClockify(ouraService, clockifyService);
+    await syncSleepToClockifyScheduler(ouraService, clockifyService);
 
     const endTime = new Date();
     const duration = Math.round((endTime.getTime() - startTime.getTime()) / 1000);
     console.log(`✅ Sync completed in ${duration}s\n`);
   } catch (error) {
-    console.error('❌ Sync job failed:', getErrorMessage(error));
+    console.error('❌ Sync job failed:', error);
     console.error('   Will retry on next scheduled run\n');
   }
 }
@@ -187,7 +108,7 @@ function getCronDescription(schedule: string): string {
   return presets[schedule] || schedule;
 }
 
-// Run the scheduler
+// Run scheduler
 main().catch((error) => {
   console.error('❌ Scheduler failed to start:', error);
   process.exit(1);

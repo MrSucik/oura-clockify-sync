@@ -19,6 +19,7 @@ A Node.js application that syncs your Oura sleep data to Clockify as time entrie
 - 📂 **Project organization** - all sleep entries are assigned to a "Sleep" project
 - 🔐 **Automatic token refresh** - OAuth2 tokens are automatically refreshed when expired
 - 🤖 **Cron-ready** - fully automated sync without user interaction
+- 🌐 **Web API** - Hono-based REST API for easy integration and management
 
 ## Setup
 
@@ -90,6 +91,9 @@ The application uses **comprehensive environment validation** with Zod at startu
 | Script | Command | Purpose |
 |--------|---------|---------|
 | Start | `npm start` | Initial OAuth authentication & full historical sync |
+| Server | `npm run server` | Start Hono web server (Docker default) |
+| Dev Server | `npm run dev:server` | Development web server with file watching |
+| Scheduler | `npm run scheduler` | Run automated scheduler (cron-based) |
 | Auto Sync | `npm run auto-sync` | Single sync run (configurable days) |
 | Schedule | `npm run schedule <schedule>` | Run scheduler with cron-like scheduling |
 | Daemon | `npm run daemon <cmd> <args>` | Manage background scheduler service |
@@ -129,6 +133,31 @@ Simply run:
 ```bash
 npm start
 ```
+
+### Web Server Mode (New!)
+
+The application now includes a **Hono-based web server** that provides REST API endpoints:
+
+```bash
+npm run server
+```
+
+Available endpoints:
+- `GET /` - Health check, status, and API information
+- `GET /auth` - Redirect to Oura authentication URL
+- `GET /callback` - OAuth callback endpoint
+- `POST /sync` - Manual sync trigger
+
+#### Docker Deployment
+The Docker container runs web server by default on port 3000:
+
+```bash
+docker compose up -d
+```
+
+Then access:
+- Health & Status: http://localhost:3000/
+- Auth: http://localhost:3000/auth
 
 ### Check Token Status
 To verify your authentication status:

@@ -39,6 +39,7 @@ RUN npm ci --only=production --no-audit --no-fund && \
 # Copy built application and source from builder
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/src ./src
+COPY --from=builder /app/drizzle ./drizzle
 
 # Create logs directory and set permissions
 RUN mkdir -p logs && \
@@ -62,5 +63,5 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 # Use dumb-init to handle signals properly
 ENTRYPOINT ["dumb-init", "--"]
 
-# Start the scheduler (runs hourly by default)
-CMD ["npm", "run", "scheduler"]
+# Start the Hono web server
+CMD ["npm", "run", "server"]
