@@ -1,5 +1,6 @@
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
+import { basicAuth } from 'hono/basic-auth';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { validateEnvironment } from './config/env';
@@ -13,6 +14,15 @@ const app = new Hono();
 // Middleware
 app.use('*', logger());
 app.use('*', cors());
+
+// Add Basic Auth middleware for sync endpoint
+app.use(
+  '/sync',
+  basicAuth({
+    username: env.BASIC_AUTH_USERNAME,
+    password: env.BASIC_AUTH_PASSWORD,
+  })
+);
 
 // Health check and status endpoint
 app.get('/', async (c) => {

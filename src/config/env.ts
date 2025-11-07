@@ -13,6 +13,10 @@ const envSchema = z.object({
   // Clockify API Configuration
   CLOCKIFY_API_TOKEN: z.string().min(1, 'Clockify API token is required'),
 
+  // Basic Authentication for /sync endpoint
+  BASIC_AUTH_USERNAME: z.string().min(1, 'Basic auth username is required'),
+  BASIC_AUTH_PASSWORD: z.string().min(1, 'Basic auth password is required'),
+
   // Application Configuration
   NODE_ENV: z.enum(['development', 'production', 'test'], {
     errorMap: () => ({ message: 'NODE_ENV must be one of: development, production, test' }),
@@ -161,6 +165,10 @@ function showExampleEnv(): void {
   console.error('# Clockify API Configuration');
   console.error('CLOCKIFY_API_TOKEN=your_clockify_token_here');
   console.error('');
+  console.error('# Basic Authentication for /sync endpoint');
+  console.error('BASIC_AUTH_USERNAME=your_username_here');
+  console.error('BASIC_AUTH_PASSWORD=your_secure_password_here');
+  console.error('');
   console.error('# Application Configuration');
   console.error('NODE_ENV=development');
   console.error('SYNC_DAYS=1');
@@ -180,6 +188,9 @@ function showExampleEnv(): void {
   console.error('');
   console.error('# Project Configuration');
   console.error('SLEEP_PROJECT_NAME=Sleep');
+  console.error('');
+  console.error('# Database Configuration');
+  console.error('DATABASE_URL=postgresql://user:password@localhost:5432/oura_clockify');
   console.error('');
 }
 
