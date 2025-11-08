@@ -1,96 +1,75 @@
-import cron from 'node-cron';
 import { validateEnvironment } from '../config/env';
-import { createClockifyService } from '../services/clockify-service';
-import { createOuraService } from '../services/oura-service';
-import { syncSleepToClockify } from '../services/sync-service';
+import { closeRedisConnection } from '../config/redis';
+import { closeSyncQueue, getSyncQueue } from '../queues/sync-queue';
+import { closeSyncWorker, createSyncWorker } from '../workers/sync-worker';
 
 // Validate environment on startup
-const env = validateEnvironment();
+validateEnvironment();
 
 /**
- * Sync sleep data from Oura to Clockify
+ * Worker-only mode runner
+ * This script runs only the BullMQ worker without the HTTP server
  */
-async function syncSleepToClockifyScheduler(
-  ouraService: Awaited<ReturnType<typeof createOuraService>>,
-  clockifyService: ReturnType<typeof createClockifyService>
-): Promise<void> {
-  await syncSleepToClockify(ouraService, clockifyService, env, {
-    showProgressBar: false,
-    logPrefix: '',
-  });
-}
-
-/**
- * Run sync job
- */
-async function runSyncJob() {
-  const startTime = new Date();
-  console.log(`\n${'='.repeat(60)}`);
-  console.log(`🕐 Scheduled sync started at ${startTime.toISOString()}`);
-  console.log('='.repeat(60));
-
-  const ouraService = await createOuraService();
-  const clockifyService = createClockifyService(env.CLOCKIFY_API_TOKEN);
-
-  if (!ouraService.hasAccessToken()) {
-    console.error('❌ No access token found in environment');
-    console.error('   Please set OURA_ACCESS_TOKEN and OURA_REFRESH_TOKEN');
-    console.error('   Run the app manually first to obtain tokens\n');
-    return;
-  }
-
-  try {
-    await syncSleepToClockifyScheduler(ouraService, clockifyService);
-
-    const endTime = new Date();
-    const duration = Math.round((endTime.getTime() - startTime.getTime()) / 1000);
-    console.log(`✅ Sync completed in ${duration}s\n`);
-  } catch (error) {
-    console.error('❌ Sync job failed:', error);
-    console.error('   Will retry on next scheduled run\n');
-  }
-}
-
-// Main execution
 async function main() {
-  console.log('🛌 Oura Clockify Sync - Scheduler\n');
-  console.log('This service will automatically sync your Oura sleep data to Clockify.\n');
+  console.log('🛌 Oura Clockify Sync - Worker\n');
+  console.log('This worker will process sync jobs from the BullMQ queue.\n');
 
   // Get schedule from environment or default to hourly
-  const schedule = process.env.SYNC_SCHEDULE || '0 * * * *'; // Default: Every hour at minute 0
-
+  const schedule = process.env.SYNC_SCHEDULE || '0 * * * *';
   console.log(`📅 Schedule: ${schedule}`);
-  console.log(`   (Cron format: ${getCronDescription(schedule)})\n`);
+  console.log(`   (${getCronDescription(schedule)})\n`);
 
-  // Validate cron expression
-  if (!cron.validate(schedule)) {
-    console.error('❌ Invalid cron schedule:', schedule);
-    console.error('   Using default: 0 * * * * (hourly)');
-    process.exit(1);
+  // Initialize queue and worker
+  const syncQueue = getSyncQueue();
+  const _syncWorker = createSyncWorker();
+
+  // Setup scheduled job
+  console.log('📅 Setting up scheduled sync job...');
+
+  // Remove stale repeatable schedules before adding new one
+  const repeatableJobs = await syncQueue.getRepeatableJobs();
+  for (const job of repeatableJobs) {
+    console.log(`🧹 Removing existing repeatable job: ${job.key}`);
+    await syncQueue.removeRepeatableByKey(job.key);
   }
 
-  // Run once immediately on startup
-  console.log('🚀 Running initial sync...');
-  await runSyncJob();
+  await syncQueue.add(
+    'sync',
+    {
+      triggeredBy: 'schedule',
+      timestamp: new Date().toISOString(),
+    },
+    {
+      repeat: {
+        pattern: schedule,
+      },
+    }
+  );
 
-  // Schedule recurring syncs
-  console.log(`⏰ Scheduler started. Next sync at top of the hour.`);
+  // Run initial sync immediately
+  console.log('🚀 Running initial sync...');
+  await syncQueue.add('sync', {
+    triggeredBy: 'schedule',
+    timestamp: new Date().toISOString(),
+  });
+
+  console.log('\n✅ Worker started. Waiting for jobs...');
   console.log('   Press Ctrl+C to stop.\n');
 
-  cron.schedule(schedule, async () => {
-    await runSyncJob();
-  });
+  // Graceful shutdown
+  const shutdown = async () => {
+    console.log('\n👋 Shutting down gracefully...');
 
-  // Keep process alive
-  process.on('SIGTERM', () => {
-    console.log('\n👋 Received SIGTERM, shutting down gracefully...');
-    process.exit(0);
-  });
+    await closeSyncWorker();
+    await closeSyncQueue();
+    await closeRedisConnection();
 
-  process.on('SIGINT', () => {
-    console.log('\n👋 Received SIGINT, shutting down gracefully...');
+    console.log('✅ Cleanup complete');
     process.exit(0);
-  });
+  };
+
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
 }
 
 /**
@@ -108,8 +87,8 @@ function getCronDescription(schedule: string): string {
   return presets[schedule] || schedule;
 }
 
-// Run scheduler
+// Run worker
 main().catch((error) => {
-  console.error('❌ Scheduler failed to start:', error);
+  console.error('❌ Worker failed to start:', error);
   process.exit(1);
 });

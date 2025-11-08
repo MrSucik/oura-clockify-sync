@@ -18,7 +18,8 @@ A Node.js application that syncs your Oura sleep data to Clockify as time entrie
 - ⏱️ **Rate limiting protection** - automatic delays between API calls to avoid hitting limits
 - 📂 **Project organization** - all sleep entries are assigned to a "Sleep" project
 - 🔐 **Automatic token refresh** - OAuth2 tokens are automatically refreshed when expired
-- 🤖 **Cron-ready** - fully automated sync without user interaction
+- 🚀 **BullMQ job queue** - reliable background job processing with Redis
+- 📈 **Job monitoring** - Bull Board dashboard for real-time queue monitoring
 - 🌐 **Web API** - Hono-based REST API for easy integration and management
 
 ## Setup
@@ -28,7 +29,14 @@ A Node.js application that syncs your Oura sleep data to Clockify as time entrie
    npm install
    ```
 
-2. **Configure environment:**
+2. **Start Redis:**
+   - Using Docker:
+     ```bash
+     docker run -d -p 6379:6379 redis:7-alpine
+     ```
+   - Or install locally from https://redis.io/download
+
+3. **Configure environment:**
    - Copy `env.example` to `.env`:
      ```bash
      cp env.example .env
@@ -66,6 +74,10 @@ The application uses **comprehensive environment validation** with Zod at startu
 
 #### Project Configuration:
 - `SLEEP_PROJECT_NAME` - Clockify project name
+
+#### Queue Configuration:
+- `REDIS_URL` - Redis connection string (default: redis://localhost:6379)
+- `SYNC_SCHEDULE` - Cron expression for scheduled syncs (default: 0 * * * *)
 
 ### Optional Variables:
 
@@ -134,9 +146,9 @@ Simply run:
 npm start
 ```
 
-### Web Server Mode (New!)
+### Web Server Mode
 
-The application now includes a **Hono-based web server** that provides REST API endpoints:
+The application includes a **Hono-based web server** with BullMQ job queue processing:
 
 ```bash
 npm run server
@@ -146,18 +158,25 @@ Available endpoints:
 - `GET /` - Health check, status, and API information
 - `GET /auth` - Redirect to Oura authentication URL
 - `GET /callback` - OAuth callback endpoint
-- `POST /sync` - Manual sync trigger
+- `POST /sync` - Manual sync trigger (adds job to queue)
+- `GET /admin/queues` - Bull Board dashboard for job monitoring
 
 #### Docker Deployment
-The Docker container runs web server by default on port 3000:
+The Docker container runs the web server with BullMQ worker:
 
 ```bash
 docker compose up -d
 ```
 
+This starts:
+- PostgreSQL database for token persistence
+- Redis for BullMQ job queue
+- Web server with integrated worker on port 5555
+
 Then access:
-- Health & Status: http://localhost:3000/
-- Auth: http://localhost:3000/auth
+- Health & Status: http://localhost:5555/
+- Auth: http://localhost:5555/auth
+- Job Dashboard: http://localhost:5555/admin/queues
 
 ### Check Token Status
 To verify your authentication status:
@@ -232,72 +251,51 @@ Each sleep session is synced as a Clockify time entry with:
 
 ## Scheduling Automatic Syncs
 
-The app uses **node-cron** for cross-platform scheduling (works on Windows, macOS, and Linux).
+The app uses **BullMQ** with Redis for reliable job scheduling and processing.
 
-### Quick Start (Every Minute for Testing)
-```bash
-npm run schedule every-minute
-```
-Press `Ctrl+C` to stop the scheduler.
+### Configuration
 
-### Available Schedules
-
-| Schedule | Command | Description |
-|----------|---------|-------------|
-| `every-minute` | `npm run schedule every-minute` | Every minute (testing) |
-| `every-5min` | `npm run schedule every-5min` | Every 5 minutes |
-| `every-30min` | `npm run schedule every-30min` | Every 30 minutes |
-| `hourly` | `npm run schedule hourly` | Every hour |
-| `every-6h` | `npm run schedule every-6h` | Every 6 hours |
-| `daily` | `npm run schedule daily` | Daily at 6:00 AM |
-| `twice-daily` | `npm run schedule twice-daily` | 9 AM & 9 PM |
-
-### Running as a Background Service (Daemon)
-
-For production use, run the scheduler as a background daemon:
+Set the sync schedule using the `SYNC_SCHEDULE` environment variable:
 
 ```bash
-# Start as daemon
-npm run daemon start every-minute
-
-# Check status
-npm run daemon status
-
-# View logs
-npm run daemon logs
-npm run daemon logs -f  # Follow logs
-
-# Stop daemon
-npm run daemon stop
-
-# Restart with new schedule
-npm run daemon restart daily
+# In your .env file
+SYNC_SCHEDULE=0 * * * *  # Every hour (default)
 ```
 
-### Example Usage
+Common cron patterns:
+- `* * * * *` - Every minute (testing)
+- `0 * * * *` - Every hour
+- `0 */6 * * *` - Every 6 hours
+- `0 0 * * *` - Daily at midnight
+- `0 6 * * *` - Daily at 6 AM
+
+### Running the Scheduler
+
+The server mode automatically starts the BullMQ worker and sets up scheduled jobs:
+
 ```bash
-# For testing - every minute sync
-npm run schedule every-minute
-
-# For production - daily sync
-npm run daemon start daily
-
-# Check if it's running
-npm run daemon status
+npm run server
 ```
 
-### Monitoring
-View scheduler logs:
-```bash
-npm run daemon logs        # Recent logs
-npm run daemon logs -f     # Follow live logs
+This will:
+- Start the BullMQ worker
+- Set up a repeatable job based on `SYNC_SCHEDULE`
+- Run an initial sync immediately
+- Process jobs as they are added to the queue
+
+### Monitoring Jobs
+
+Access the Bull Board dashboard to monitor your sync jobs:
+
+```
+http://localhost:5555/admin/queues
 ```
 
-Or directly access log files:
-```bash
-tail -f logs/scheduler.log  # Sync activity
-tail -f logs/daemon.log     # Daemon management
-```
+The dashboard shows:
+- Active, completed, and failed jobs
+- Job details and execution logs
+- Queue statistics
+- Ability to retry failed jobs manually
 
 ### Token Management
 - Tokens are stored in your `.env` file as `OURA_ACCESS_TOKEN` and `OURA_REFRESH_TOKEN`
@@ -345,35 +343,36 @@ oura-clockify-sync/
 │   ├── QUICKSTART.md     # Quick start guide
 │   └── ENVIRONMENT.md    # Environment configuration guide
 ├── src/
-│   ├── config/           # Environment validation
-│   │   └── env.ts
+│   ├── config/           # Configuration
+│   │   ├── env.ts        # Environment validation
+│   │   └── redis.ts      # Redis connection
 │   ├── services/         # API service classes
-│   │   ├── ClockifyService.ts
-│   │   └── OuraService.ts
+│   │   ├── clockify-service.ts
+│   │   ├── oura-service.ts
+│   │   └── sync-service.ts
+│   ├── queues/           # BullMQ queue definitions
+│   │   └── sync-queue.ts
+│   ├── workers/          # BullMQ workers
+│   │   └── sync-worker.ts
 │   ├── scripts/          # Executable scripts
 │   │   ├── index.ts      # Initial auth & sync
-│   │   ├── auto-sync.ts  # Automated sync
-│   │   ├── scheduler.ts  # Cron scheduler
-│   │   ├── process-manager.ts # Daemon manager
-│   │   ├── verify-tokens.ts   # Token verification
-│   │   ├── check-token.ts     # Quick token check
-│   │   └── cleanup.ts    # Clean up entries
-│   ├── types/            # TypeScript interfaces
-│   │   ├── auth.ts       # Authentication types
-│   │   ├── sleep.ts      # Sleep data types
-│   │   └── clockify.ts   # Clockify API types
-│   └── utils/            # Shared utilities
-│       ├── common.ts     # General utilities
-│       └── token.ts      # Token management
-├── logs/                 # Runtime logs
+│   │   ├── scheduler.ts  # Worker-only mode
+│   │   └── sync.ts       # Sync wrapper
+│   ├── db/               # Database
+│   │   ├── schema.ts     # Drizzle schema
+│   │   └── migrate.ts    # Migration runner
+│   └── server.ts         # Hono web server
+├── docker-compose.yml    # Docker services
+├── Dockerfile            # Container image
 ├── package.json
 ├── env.example          # Environment template
 └── README.md
 ```
 
 The codebase follows a clean architecture pattern with:
-- **Services**: Encapsulate API interactions (Oura, Clockify)
-- **Types**: Shared TypeScript interfaces
-- **Utils**: Reusable utility functions
-- **Config**: Centralized environment validation
-- **Scripts**: Entry points for different operations
+- **Config**: Environment validation and Redis connection
+- **Services**: Encapsulate API interactions (Oura, Clockify, Sync)
+- **Queues**: BullMQ queue definitions for job management
+- **Workers**: Job processors for background tasks
+- **Server**: Web API with Bull Board dashboard
+- **Database**: PostgreSQL with Drizzle ORM for token persistence
