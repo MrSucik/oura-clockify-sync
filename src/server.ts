@@ -157,6 +157,10 @@ app.get('/', async (c) => {
         <div class="auth-link">
           <a href="/auth" class="btn">🔐 Authenticate with Oura</a>
         </div>
+
+        <div class="auth-link" style="margin-left: 10px;">
+          <a href="/admin/queues" class="btn" style="background: #6c757d;">📊 Job Queue Dashboard</a>
+        </div>
       </body>
       </html>
     `);
