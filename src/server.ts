@@ -1,38 +1,57 @@
+import { createBullBoard } from '@bull-board/api';
+import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';
+import { HonoAdapter } from '@bull-board/hono';
 import { serve } from '@hono/node-server';
+import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono } from 'hono';
 import { basicAuth } from 'hono/basic-auth';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { validateEnvironment } from './config/env';
-import { syncSleepToClockifyExport } from './scripts/sync';
-import { createClockifyService } from './services/clockify-service';
+import { closeRedisConnection } from './config/redis';
+import { closeSyncQueue, getSyncQueue } from './queues/sync-queue';
 import { createOuraService } from './services/oura-service';
+import { closeSyncWorker, createSyncWorker } from './workers/sync-worker';
 
 const env = validateEnvironment();
 const app = new Hono();
+
+// Initialize BullMQ queue and worker
+const syncQueue = getSyncQueue();
+const _syncWorker = createSyncWorker();
+
+// Setup Bull Board for monitoring
+const serverAdapter = new HonoAdapter(serveStatic);
+serverAdapter.setBasePath('/admin/queues');
+
+createBullBoard({
+  queues: [new BullMQAdapter(syncQueue)],
+  serverAdapter,
+});
 
 // Middleware
 app.use('*', logger());
 app.use('*', cors());
 
+// Mount Bull Board routes - use the adapter's registered plugin as a sub-app
+const bullBoardApp = serverAdapter.registerPlugin();
+app.route('/admin/queues', bullBoardApp);
+
 // Add Basic Auth middleware for all endpoints except OAuth callback
-app.use(
-  '*',
-  async (c, next) => {
-    // Skip auth for OAuth callback endpoint
-    if (c.req.path === '/callback') {
-      return next();
-    }
-
-    // Apply basic auth to all other endpoints
-    const auth = basicAuth({
-      username: env.BASIC_AUTH_USERNAME,
-      password: env.BASIC_AUTH_PASSWORD,
-    });
-
-    return auth(c, next);
+app.use('*', async (c, next) => {
+  // Skip auth for OAuth callback endpoint
+  if (c.req.path === '/callback') {
+    return next();
   }
-);
+
+  // Apply basic auth to all other endpoints
+  const auth = basicAuth({
+    username: env.BASIC_AUTH_USERNAME,
+    password: env.BASIC_AUTH_PASSWORD,
+  });
+
+  return auth(c, next);
+});
 
 // Health check and status endpoint
 app.get('/', async (c) => {
@@ -176,7 +195,6 @@ app.get('/', async (c) => {
 app.post('/sync', async (c) => {
   try {
     const ouraService = await createOuraService();
-    const clockifyService = createClockifyService(env.CLOCKIFY_API_TOKEN);
 
     if (!ouraService.hasAccessToken()) {
       return c.json(
@@ -188,24 +206,22 @@ app.post('/sync', async (c) => {
       );
     }
 
-    // Start sync in background
-    syncSleepToClockifyExport(ouraService, clockifyService)
-      .then(() => {
-        console.log('✅ Background sync completed successfully');
-      })
-      .catch((error: unknown) => {
-        console.error('❌ Background sync failed:', error);
-      });
+    // Add job to queue
+    const job = await syncQueue.add('sync', {
+      triggeredBy: 'manual',
+      timestamp: new Date().toISOString(),
+    });
 
     return c.json({
-      message: 'Sync started',
-      status: 'running',
+      message: 'Sync job added to queue',
+      status: 'queued',
+      jobId: job.id,
     });
   } catch (error: unknown) {
     console.error('Sync endpoint error:', error);
     return c.json(
       {
-        error: 'Failed to start sync',
+        error: 'Failed to add sync job',
         message: error instanceof Error ? error.message : 'Unknown error',
       },
       500
@@ -237,21 +253,16 @@ app.get('/callback', async (c) => {
     // Set the access token
     ouraService.setAccessToken(tokenData.access_token);
 
-    // Start sync process
-    const clockifyService = createClockifyService(env.CLOCKIFY_API_TOKEN);
-    syncSleepToClockifyExport(ouraService, clockifyService)
-      .then(() => {
-        console.log('\n✨ Sync completed successfully!');
-      })
-      .catch((error: unknown) => {
-        console.error('\n❌ Sync failed:', error);
-      });
+    // Add sync job to queue
+    await syncQueue.add('sync', {
+      triggeredBy: 'manual',
+      timestamp: new Date().toISOString(),
+    });
 
     return c.html(`
       <h1>Authentication Successful!</h1>
       <p>Your Oura account has been connected.</p>
-      <p>Starting sync to Clockify...</p>
-      <p>Check the server logs for progress.</p>
+      <p>Sync job added to queue. Check the server logs for progress.</p>
       <script>
         setTimeout(() => {
           window.close();
@@ -265,7 +276,7 @@ app.get('/callback', async (c) => {
     console.error('Auth endpoint error:', error);
     return c.json(
       {
-        error: 'Failed to generate auth URL',
+        error: 'Failed to complete authentication',
         message: error instanceof Error ? error.message : 'Unknown error',
       },
       500
@@ -296,72 +307,97 @@ app.get('/auth', async (c) => {
 
 // Start server
 const port = env.SERVER_PORT;
-const runMode = process.env.RUN_MODE || 'both';
+
+async function setupScheduledJob(): Promise<void> {
+  const schedule = process.env.SYNC_SCHEDULE || '0 * * * *'; // Default: Every hour at minute 0
+
+  console.log(`📅 Setting up scheduled sync job`);
+  console.log(`   Schedule: ${schedule}`);
+  console.log(`   (${getCronDescription(schedule)})\n`);
+
+  // Remove stale repeatable schedules before adding new one
+  const repeatableJobs = await syncQueue.getRepeatableJobs();
+  for (const job of repeatableJobs) {
+    console.log(`🧹 Removing existing repeatable job: ${job.key}`);
+    await syncQueue.removeRepeatableByKey(job.key);
+  }
+
+  // Add repeatable job
+  await syncQueue.add(
+    'sync',
+    {
+      triggeredBy: 'schedule',
+      timestamp: new Date().toISOString(),
+    },
+    {
+      repeat: {
+        pattern: schedule,
+      },
+    }
+  );
+
+  // Run initial sync immediately
+  console.log('🚀 Running initial sync...');
+  await syncQueue.add('sync', {
+    triggeredBy: 'schedule',
+    timestamp: new Date().toISOString(),
+  });
+}
+
+function getCronDescription(schedule: string): string {
+  const presets: Record<string, string> = {
+    '* * * * *': 'Every minute',
+    '0 * * * *': 'Every hour',
+    '0 */6 * * *': 'Every 6 hours',
+    '0 0 * * *': 'Daily at midnight',
+    '0 6 * * *': 'Daily at 6 AM',
+  };
+
+  return presets[schedule] || schedule;
+}
 
 async function startServer(): Promise<void> {
-  console.log(`✅ Web server running on http://localhost:${port}`);
+  console.log(`🚀 Starting Hono server on port ${port}`);
+
+  // Setup scheduled job
+  await setupScheduledJob();
 
   serve({
     fetch: app.fetch,
     port,
   }).on('listening', () => {
+    console.log(`\n✅ Web server running on http://localhost:${port}`);
     console.log('\n📋 Available endpoints:');
-    console.log('  GET  /           - Health check and status info');
-    console.log('  GET  /auth        - Redirect to Oura authentication');
-    console.log('  GET  /callback   - OAuth callback endpoint');
-    console.log('  POST /sync        - Manual sync trigger');
+    console.log('  GET  /                 - Health check and status info');
+    console.log('  GET  /auth              - Redirect to Oura authentication');
+    console.log('  GET  /callback         - OAuth callback endpoint');
+    console.log('  POST /sync              - Manual sync trigger');
+    console.log('  GET  /admin/queues     - BullMQ dashboard (job monitoring)');
     console.log('\n🔐 To authenticate:');
     console.log(`1. Visit http://localhost:${port}/auth`);
     console.log('2. Follow the Oura authorization URL');
     console.log('3. Complete authentication in Oura');
     console.log('4. Sync will start automatically');
+    console.log(`\n📊 Monitor jobs at: http://localhost:${port}/admin/queues`);
   });
 }
 
-async function startScheduler(): Promise<void> {
-  console.log('🚀 Starting scheduler in background');
+// Graceful shutdown
+async function shutdown(): Promise<void> {
+  console.log('\n👋 Shutting down gracefully...');
 
-  const { spawn } = await import('node:child_process');
-  const scheduler = spawn('tsx', ['src/scripts/scheduler.ts'], {
-    stdio: 'inherit',
-    detached: false,
-  });
+  await closeSyncWorker();
+  await closeSyncQueue();
+  await closeRedisConnection();
 
-  scheduler.on('error', (error) => {
-    console.error('❌ Scheduler error:', error);
-  });
-
-  scheduler.on('spawn', () => {
-    console.log('✅ Scheduler process started');
-  });
+  console.log('✅ Cleanup complete');
+  process.exit(0);
 }
 
-async function run(): Promise<void> {
-  if (runMode === 'both' || runMode === 'server') {
-    console.log(`🚀 Starting Hono server on port ${port}`);
-    await startServer();
-  }
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
 
-  if (runMode === 'both' || runMode === 'scheduler') {
-    await startScheduler();
-  }
-
-  if (runMode === 'both') {
-    console.log('\n⏰ Scheduler running alongside web server (hourly syncs)');
-  }
-
-  if (runMode === 'server') {
-    console.log(
-      '\n💡 Scheduler disabled (RUN_MODE=server). Set RUN_MODE=both to enable scheduler.'
-    );
-  }
-
-  if (runMode === 'scheduler') {
-    console.log('\n⚠️ Running scheduler-only mode (RUN_MODE=scheduler). Web server not started.');
-  }
-}
-
-run().catch((error) => {
-  console.error('❌ Failed to start services:', error);
+startServer().catch((error) => {
+  console.error('❌ Failed to start server:', error);
   process.exit(1);
 });

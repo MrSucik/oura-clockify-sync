@@ -17,17 +17,29 @@ services:
       retries: 5
     restart: unless-stopped
 
+  redis:
+    image: redis:7-alpine
+    container_name: oura-clockify-sync-redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   app:
     build: .
     container_name: oura-clockify-sync
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     env_file:
       - .env
     environment:
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/postgres
-      RUN_MODE: both
+      REDIS_URL: redis://redis:6379
     ports:
       - "${SERVER_PORT:-5555}:${SERVER_PORT:-5555}"
     command: sh -c "npm run db:migrate && npm run server"
