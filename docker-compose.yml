@@ -8,8 +8,6 @@ services:
       POSTGRES_DB: postgres
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -28,10 +26,10 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/postgres
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/postgres
       RUN_MODE: both
     ports:
-      - "3000:3000"
+      - "${SERVER_PORT:-5555}:${SERVER_PORT:-5555}"
     command: sh -c "npm run db:migrate && npm run server"
     restart: unless-stopped
 
