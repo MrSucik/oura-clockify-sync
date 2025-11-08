@@ -15,13 +15,23 @@ const app = new Hono();
 app.use('*', logger());
 app.use('*', cors());
 
-// Add Basic Auth middleware for sync endpoint
+// Add Basic Auth middleware for all endpoints except OAuth callback
 app.use(
-  '/sync',
-  basicAuth({
-    username: env.BASIC_AUTH_USERNAME,
-    password: env.BASIC_AUTH_PASSWORD,
-  })
+  '*',
+  async (c, next) => {
+    // Skip auth for OAuth callback endpoint
+    if (c.req.path === '/callback') {
+      return next();
+    }
+
+    // Apply basic auth to all other endpoints
+    const auth = basicAuth({
+      username: env.BASIC_AUTH_USERNAME,
+      password: env.BASIC_AUTH_PASSWORD,
+    });
+
+    return auth(c, next);
+  }
 );
 
 // Health check and status endpoint
